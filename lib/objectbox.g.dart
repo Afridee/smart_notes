@@ -63,7 +63,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 6380278326908799177),
     name: 'NoteChunk',
-    lastPropertyId: const obx_int.IdUid(6, 4545782700273148906),
+    lastPropertyId: const obx_int.IdUid(7, 4498683549219253186),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -105,6 +105,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(6, 4545782700273148906),
         name: 'createdAt',
         type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 4498683549219253186),
+        name: 'contextHeader',
+        type: 9,
         flags: 0,
       ),
     ],
@@ -233,13 +239,15 @@ obx_int.ModelDefinition getObjectBoxModel() {
       objectToFB: (NoteChunk object, fb.Builder fbb) {
         final textOffset = fbb.writeString(object.text);
         final embeddingOffset = fbb.writeListFloat32(object.embedding);
-        fbb.startTable(7);
+        final contextHeaderOffset = fbb.writeString(object.contextHeader);
+        fbb.startTable(8);
         fbb.addInt64(0, object.id);
         fbb.addInt64(1, object.note.targetId);
         fbb.addInt64(2, object.chunkIndex);
         fbb.addOffset(3, textOffset);
         fbb.addOffset(4, embeddingOffset);
         fbb.addInt64(5, object.createdAt.millisecondsSinceEpoch);
+        fbb.addOffset(6, contextHeaderOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -261,6 +269,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final textParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 10, '');
+        final contextHeaderParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 16, '');
         final embeddingParam = const fb.ListReader<double>(
           fb.Float32Reader(),
           lazy: false,
@@ -272,6 +283,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           id: idParam,
           chunkIndex: chunkIndexParam,
           text: textParam,
+          contextHeader: contextHeaderParam,
           embedding: embeddingParam,
           createdAt: createdAtParam,
         );
@@ -344,5 +356,10 @@ class NoteChunk_ {
   /// See [NoteChunk.createdAt].
   static final createdAt = obx.QueryDateProperty<NoteChunk>(
     _entities[1].properties[5],
+  );
+
+  /// See [NoteChunk.contextHeader].
+  static final contextHeader = obx.QueryStringProperty<NoteChunk>(
+    _entities[1].properties[6],
   );
 }

@@ -23,10 +23,31 @@ class RagService extends GetxService {
     for (var i = 0; i < retrieved.length; i++) {
       final r = retrieved[i];
       ctx.writeln('[#${i + 1}] (score=${r.score.toStringAsFixed(3)})');
-      ctx.writeln(r.chunk.text.trim());
+      final header = _headerFor(r);
+      if (header.isNotEmpty) {
+        ctx.writeln(header);
+        ctx.writeln();
+      }
+      final body = r.chunk.text.trim();
+      if (body.isNotEmpty) {
+        ctx.writeln(body);
+      }
       ctx.writeln();
     }
     return 'Note excerpts:\n$ctx\nQuestion: $question';
+  }
+
+  /// Returns the per-chunk context header to render above the chunk text.
+  ///
+  /// Prefers the stored [NoteChunk.contextHeader] (populated for chunks
+  /// indexed after the contextual-header migration). Falls back to the
+  /// parent note's title for legacy chunks so old data still gets some
+  /// title context in the prompt.
+  String _headerFor(SimilarChunk r) {
+    final stored = r.chunk.contextHeader.trim();
+    if (stored.isNotEmpty) return stored;
+    final title = r.chunk.note.target?.title.trim() ?? '';
+    return title.isEmpty ? '' : 'Title: $title';
   }
 
   String get systemInstruction => defaultSystemInstruction;

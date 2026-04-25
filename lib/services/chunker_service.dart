@@ -2,12 +2,16 @@ import 'package:get/get.dart';
 
 /// Splits free-form note text into approximately N-token chunks.
 ///
-/// v1 uses a word-count heuristic (1 token ≈ 0.75 words → ~375 words per
-/// 500 tokens). It tries to break on sentence boundaries when possible and
-/// falls back to a sliding window of words. Replace with a tokenizer-aware
-/// chunker once we expose the embedder's tokenizer.
+/// v1 uses a word-count heuristic (1 token ≈ 0.75 words). It tries to break
+/// on sentence boundaries when possible and falls back to a sliding window
+/// of words. Replace with a tokenizer-aware chunker once we expose the
+/// embedder's tokenizer.
+///
+/// The default budget is set below the 512-token EmbeddingGemma sequence
+/// cap to leave room for the per-chunk context header (title + dates) that
+/// is prepended at indexing time.
 class ChunkerService extends GetxService {
-  static const int defaultTargetTokens = 500;
+  static const int defaultTargetTokens = 480;
   static const double tokenToWordRatio = 0.75;
   static const int defaultOverlapWords = 32;
 

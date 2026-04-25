@@ -5,10 +5,20 @@ import '../data/models/note_chunk.dart';
 import '../data/objectbox/objectbox.dart';
 import '../objectbox.g.dart';
 
-/// Tuple of (chunkText, embeddingVector) used when bulk-indexing a note.
+/// Tuple of (chunkText, contextHeader, embeddingVector) used when bulk-indexing a note.
+///
+/// [text] is the raw body chunk (kept verbatim for display / LLM context).
+/// [header] is the per-chunk context block (e.g. title + dates) that was
+/// concatenated with [text] before embedding. The vector therefore encodes
+/// both, while [text] alone stays unpolluted for any non-RAG use.
 class IndexedChunk {
-  IndexedChunk({required this.text, required this.vector});
+  IndexedChunk({
+    required this.text,
+    required this.vector,
+    this.header = '',
+  });
   final String text;
+  final String header;
   final List<double> vector;
 }
 
@@ -35,6 +45,7 @@ class VectorStoreService extends GetxService {
       final entity = NoteChunk(
         chunkIndex: i,
         text: c.text,
+        contextHeader: c.header,
         embedding: c.vector,
       )..note.target = note;
       entities.add(entity);

@@ -64,23 +64,40 @@ class NotesController extends GetxController {
       note.id = savedId;
 
       saveStatus.value = 'Chunking…';
-      final chunks = _chunker.split(body);
+      final bodyChunks = _chunker.split(body);
+      final header = _composeHeader(note);
+
+      // Title-only notes: still index one chunk so the title is searchable.
+      final chunks = bodyChunks.isEmpty && header.isNotEmpty
+          ? const <String>['']
+          : bodyChunks;
 
       if (chunks.isNotEmpty) {
         if (id != null && id != 0) {
           await _vectorStore.deleteChunksForNote(savedId);
         }
 
+        final embedInputs = <String>[
+          for (final c in chunks)
+            header.isEmpty
+                ? c
+                : (c.isEmpty ? header : '$header\n\n$c'),
+        ];
+
         saveStatus.value = 'Embedding ${chunks.length} chunk(s)…';
         final vectors = await _embedder.embedBatch(
-          chunks,
+          embedInputs,
           taskType: TaskType.retrievalDocument,
         );
 
         saveStatus.value = 'Indexing…';
         final indexed = <IndexedChunk>[
           for (var i = 0; i < chunks.length; i++)
-            IndexedChunk(text: chunks[i], vector: vectors[i]),
+            IndexedChunk(
+              text: chunks[i],
+              header: header,
+              vector: vectors[i],
+            ),
         ];
         await _vectorStore.addChunks(note, indexed);
       }
@@ -101,5 +118,24 @@ class NotesController extends GetxController {
     await _vectorStore.deleteChunksForNote(note.id);
     _box.noteBox.remove(note.id);
     refreshNotes();
+  }
+
+  /// Builds the per-chunk context header that is concatenated with the body
+  /// chunk before embedding and rendered above it in the RAG prompt.
+  String _composeHeader(Note note) {
+    final parts = <String>[];
+    final title = note.title.trim();
+    if (title.isNotEmpty) parts.add('Title: $title');
+    parts.add('Created: ${_isoDate(note.createdAt)}');
+    parts.add('Updated: ${_isoDate(note.updatedAt)}');
+    return parts.join('\n');
+  }
+
+  String _isoDate(DateTime dt) {
+    final local = dt.toLocal();
+    final y = local.year.toString().padLeft(4, '0');
+    final m = local.month.toString().padLeft(2, '0');
+    final d = local.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
   }
 }
