@@ -7,6 +7,7 @@ import '../../../data/models/note.dart';
 import '../../../data/objectbox/objectbox.dart';
 import '../../../services/chunker_service.dart';
 import '../../../services/embedding_service.dart';
+import '../../../services/note_graph_service.dart';
 import '../../../services/vector_store_service.dart';
 
 class NotesController extends GetxController {
@@ -15,15 +16,18 @@ class NotesController extends GetxController {
     EmbeddingService? embedder,
     ChunkerService? chunker,
     VectorStoreService? vectorStore,
+    NoteGraphService? graph,
   })  : _box = box ?? Get.find<ObjectBox>(),
         _embedder = embedder ?? Get.find<EmbeddingService>(),
         _chunker = chunker ?? Get.find<ChunkerService>(),
-        _vectorStore = vectorStore ?? Get.find<VectorStoreService>();
+        _vectorStore = vectorStore ?? Get.find<VectorStoreService>(),
+        _graph = graph ?? Get.find<NoteGraphService>();
 
   final ObjectBox _box;
   final EmbeddingService _embedder;
   final ChunkerService _chunker;
   final VectorStoreService _vectorStore;
+  final NoteGraphService _graph;
 
   final notes = <Note>[].obs;
   final isSaving = false.obs;
@@ -34,6 +38,7 @@ class NotesController extends GetxController {
   void onReady() {
     super.onReady();
     refreshNotes();
+    _graph.kickoffStartupRepair();
   }
 
   void refreshNotes() {
@@ -100,6 +105,8 @@ class NotesController extends GetxController {
             ),
         ];
         await _vectorStore.addChunks(note, indexed);
+        await _graph.updateNoteEmbeddingFromChunks(note);
+        await _graph.refreshEdgesForNote(note.id);
       }
 
       saveStatus.value = 'Done';
@@ -115,6 +122,7 @@ class NotesController extends GetxController {
   }
 
   Future<void> deleteNote(Note note) async {
+    await _graph.deleteEdgesForNote(note.id);
     await _vectorStore.deleteChunksForNote(note.id);
     _box.noteBox.remove(note.id);
     refreshNotes();

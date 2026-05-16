@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../data/models/note.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/note_graph_service.dart';
 import '../controllers/notes_controller.dart';
 
 class NoteEditorPage extends StatefulWidget {
@@ -114,6 +116,20 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
               ),
+              if (_editing != null && _editing!.id != 0) ...[
+                const Divider(height: 28),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Related Notes',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _EditorRelatedNotes(noteId: _editing!.id),
+              ],
               const SizedBox(height: 12),
               Obx(() => Text(
                     _notes.saveStatus.value,
@@ -123,6 +139,45 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EditorRelatedNotes extends StatelessWidget {
+  const _EditorRelatedNotes({required this.noteId});
+
+  final int noteId;
+
+  @override
+  Widget build(BuildContext context) {
+    final gs = Get.find<NoteGraphService>();
+    final pairs = gs.topRelatedNotesWithScores(noteId, limit: 5);
+    if (pairs.isEmpty) {
+      return Text(
+        'No related notes yet. Keep writing!',
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.outline,
+            ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final row in pairs)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text(
+              row.$1.title.trim().isEmpty ? '(untitled)' : row.$1.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: Text('${(row.$2 * 100).round()}% similar'),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () =>
+                Get.toNamed(AppRoutes.noteEditor, arguments: row.$1),
+          ),
+      ],
     );
   }
 }

@@ -92,4 +92,18 @@ class VectorStoreService extends GetxService {
   }
 
   int chunkCount() => _box.chunkBox.count();
+
+  /// Chunks for [noteId], ordered by [NoteChunk.chunkIndex].
+  List<NoteChunk> getChunksForNote(int noteId) {
+    final query = _box.chunkBox
+        .query(NoteChunk_.note.equals(noteId))
+        .build();
+    try {
+      final list = query.find();
+      list.sort((a, b) => a.chunkIndex.compareTo(b.chunkIndex));
+      return list;
+    } finally {
+      query.close();
+    }
+  }
 }
