@@ -9,7 +9,9 @@ class RagService extends GetxService {
       'You are Smart Notes, a helpful on-device assistant. '
       'Answer the user using ONLY the provided note excerpts. '
       'If the answer is not in the notes, say so plainly. '
-      'Be concise. Cite the chunk number(s) like [#1], [#2] when relevant.';
+      'Be concise. Cite the chunk number(s) like [#1], [#2] when relevant. '
+      'Format every reply in Markdown (e.g. ## headings, **bold**, `-` bullets, '
+      '`inline code`) when it helps readability.';
 
   /// Tokens reserved for system instruction, Gemma chat template, and decoding.
   static const int _promptReserveTokens = 768;
@@ -27,7 +29,8 @@ class RagService extends GetxService {
       final q = _trimmedQuestion(question);
       return 'The user has no indexed notes that match the question.\n\n'
           'Question: $q\n\n'
-          'Reply that you have no relevant note context and ask them to write more notes.';
+          'Reply that you have no relevant note context and ask them to write more notes. '
+          'Use Markdown in your reply (e.g. short heading, bullet list of what they could note down).';
     }
 
     final tokenCap = Get.find<GemmaService>().loadedMaxTokens;

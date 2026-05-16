@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 
+import '../../../data/models/note.dart';
+import '../../../data/objectbox/objectbox.dart';
+import '../../../routes/app_routes.dart';
+import '../../../services/vector_store_service.dart';
 import '../controllers/chat_controller.dart';
 
 class ChatPage extends GetView<ChatController> {
@@ -130,6 +135,9 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final isUser = message.role == ChatRole.user;
     final theme = Theme.of(context);
+    final sourceNotes = message.citations.isEmpty
+        ? const <Note>[]
+        : _notesFromCitations(message.citations);
     final color = isUser
         ? theme.colorScheme.primaryContainer
         : theme.colorScheme.surfaceContainerHighest;
@@ -148,19 +156,47 @@ class _Bubble extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Obx(() => Text(message.text.value)),
-            if (message.citations.isNotEmpty) ...[
+            Obx(() {
+              final text = message.text.value;
+              if (isUser) {
+                return Text(text);
+              }
+              return SelectionArea(
+                child: GptMarkdown(
+                  text,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              );
+            }),
+            if (sourceNotes.isNotEmpty) ...[
               const SizedBox(height: 8),
+              Text(
+                'Sources',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 6),
               Wrap(
-                spacing: 6,
-                runSpacing: 4,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  for (var i = 0; i < message.citations.length; i++)
-                    Chip(
-                      visualDensity: VisualDensity.compact,
+                  for (final note in sourceNotes)
+                    ActionChip(
+                      avatar: Icon(
+                        Icons.article_outlined,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
                       label: Text(
-                        '#${i + 1} · ${message.citations[i].score.toStringAsFixed(2)}',
+                        _referenceLabel(note.title),
                         style: theme.textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => Get.toNamed(
+                        AppRoutes.noteEditor,
+                        arguments: note,
                       ),
                     ),
                 ],
@@ -171,4 +207,25 @@ class _Bubble extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Note> _notesFromCitations(List<SimilarChunk> citations) {
+  final box = Get.find<ObjectBox>();
+  final seen = <int>{};
+  final out = <Note>[];
+  for (final s in citations) {
+    final id = s.chunk.note.targetId;
+    if (id == 0 || seen.contains(id)) continue;
+    seen.add(id);
+    final note = box.noteBox.get(id);
+    if (note != null) out.add(note);
+  }
+  return out;
+}
+
+String _referenceLabel(String title) {
+  final t = title.trim();
+  if (t.isEmpty) return 'Untitled note';
+  if (t.length <= 52) return t;
+  return '${t.substring(0, 50)}…';
 }

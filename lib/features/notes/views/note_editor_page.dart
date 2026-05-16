@@ -174,8 +174,11 @@ class _EditorRelatedNotes extends StatelessWidget {
             ),
             subtitle: Text('${(row.$2 * 100).round()}% similar'),
             trailing: const Icon(Icons.chevron_right, size: 20),
-            onTap: () =>
-                Get.toNamed(AppRoutes.noteEditor, arguments: row.$1),
+            onTap: () => Get.toNamed(
+                  AppRoutes.noteEditor,
+                  arguments: row.$1,
+                  preventDuplicates: false,
+                ),
           ),
       ],
     );
