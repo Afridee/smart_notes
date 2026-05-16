@@ -90,28 +90,32 @@ class GraphController extends GetxController {
       topK: 32,
       topP: 0.9,
     );
-    await chat.addQueryChunk(Message.text(text: prompt, isUser: true));
+    try {
+      await chat.addQueryChunk(Message.text(text: prompt, isUser: true));
 
-    final buf = StringBuffer();
-    final completer = Completer<void>();
-    StreamSubscription<ModelResponse>? sub;
-    sub = chat.generateChatResponseAsync().listen(
-      (resp) {
-        if (resp is TextResponse) buf.write(resp.token);
-      },
-      onError: (e, _) {
-        if (!completer.isCompleted) completer.completeError(e);
-      },
-      onDone: () {
-        if (!completer.isCompleted) completer.complete();
-      },
-    );
-    await completer.future;
-    await sub.cancel();
+      final buf = StringBuffer();
+      final completer = Completer<void>();
+      StreamSubscription<ModelResponse>? sub;
+      sub = chat.generateChatResponseAsync().listen(
+        (resp) {
+          if (resp is TextResponse) buf.write(resp.token);
+        },
+        onError: (e, _) {
+          if (!completer.isCompleted) completer.completeError(e);
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+      );
+      await completer.future;
+      await sub.cancel();
 
-    final text = buf.toString().trim();
-    if (text.isNotEmpty) whyExplanationCache[key] = text;
-    return text.isEmpty ? '(No response)' : text;
+      final text = buf.toString().trim();
+      if (text.isNotEmpty) whyExplanationCache[key] = text;
+      return text.isEmpty ? '(No response)' : text;
+    } finally {
+      await chat.close();
+    }
   }
 
   double opacityForNode(int noteId) {

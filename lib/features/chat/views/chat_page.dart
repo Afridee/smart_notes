@@ -28,7 +28,9 @@ class ChatPage extends GetView<ChatController> {
         actions: [
           IconButton(
             icon: const Icon(Icons.clear_all),
-            onPressed: controller.clear,
+            onPressed: () async {
+              await controller.clear();
+            },
           ),
         ],
       ),
