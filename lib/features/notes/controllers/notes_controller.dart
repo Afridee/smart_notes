@@ -1,5 +1,6 @@
 import 'dart:developer' show log;
 
+import 'package:flutter/material.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:get/get.dart';
 
@@ -33,6 +34,31 @@ class NotesController extends GetxController {
   final isSaving = false.obs;
   final saveStatus = ''.obs;
   final lastError = RxnString();
+
+  /// Drives list filtering; kept in sync with [searchFieldController].
+  final searchQuery = ''.obs;
+
+  /// Search box on the notes list; [searchQuery] updates via listener.
+  late final TextEditingController searchFieldController;
+
+  @override
+  void onInit() {
+    super.onInit();
+    searchFieldController = TextEditingController();
+    searchFieldController.addListener(() {
+      searchQuery.value = searchFieldController.text;
+    });
+  }
+
+  @override
+  void onClose() {
+    searchFieldController.dispose();
+    super.onClose();
+  }
+
+  void clearSearch() {
+    searchFieldController.clear();
+  }
 
   @override
   void onReady() {
