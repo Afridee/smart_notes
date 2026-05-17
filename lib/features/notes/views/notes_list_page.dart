@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
 
 import '../../../data/models/note.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/note_graph_service.dart';
 import '../controllers/notes_controller.dart';
+import '../show_delete_note_confirmation.dart';
 
 class NotesListPage extends GetView<NotesController> {
   const NotesListPage({super.key});
@@ -27,10 +29,9 @@ class NotesListPage extends GetView<NotesController> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => Get.toNamed(AppRoutes.noteEditor),
-        icon: const Icon(Icons.add),
-        label: const Text('New note'),
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -40,19 +41,29 @@ class NotesListPage extends GetView<NotesController> {
               if (items.isEmpty) {
                 return const _EmptyState();
               }
-              return ListView.separated(
+              final crossAxis = _gridCrossAxisCount(context);
+              return MasonryGridView.count(
+                crossAxisCount: crossAxis,
                 padding: const EdgeInsets.all(12),
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
                 itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, i) {
                   final note = items[i];
                   return _NoteTile(
                     note: note,
+                    bodyMaxLines: _gridBodyMaxLines(note, i),
                     onTap: () => Get.toNamed(
                       AppRoutes.noteEditor,
                       arguments: note,
                     ),
-                    onDelete: () => controller.deleteNote(note),
+                    onDelete: () async {
+                      final ok = await showDeleteNoteConfirmation(
+                        context,
+                        note,
+                      );
+                      if (ok) await controller.deleteNote(note);
+                    },
                   );
                 },
               );
@@ -69,36 +80,78 @@ class NotesListPage extends GetView<NotesController> {
   }
 }
 
+int _gridCrossAxisCount(BuildContext context) {
+  final w = MediaQuery.sizeOf(context).width;
+  if (w >= 1100) return 4;
+  if (w >= 720) return 3;
+  return 2;
+}
+
+/// Varies preview height so masonry tiles read as different-sized boxes.
+int _gridBodyMaxLines(Note note, int index) {
+  final x = (note.id.hashCode ^ index * 31).abs();
+  return 2 + (x % 7);
+}
+
 class _NoteTile extends StatelessWidget {
   const _NoteTile({
     required this.note,
+    required this.bodyMaxLines,
     required this.onTap,
     required this.onDelete,
   });
 
   final Note note;
+  final int bodyMaxLines;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final title = note.title.isEmpty ? '(untitled)' : note.title;
     return Card(
-      child: ListTile(
-        title: Text(
-          note.title.isEmpty ? '(untitled)' : note.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          note.body,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline),
-          onPressed: onDelete,
-        ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
         onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  // IconButton(
+                  //   tooltip: 'Delete',
+                  //   icon: const Icon(Icons.delete_outline, size: 22),
+                  //   visualDensity: VisualDensity.compact,
+                  //   onPressed: onDelete,
+                  // ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                note.body,
+                maxLines: bodyMaxLines,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

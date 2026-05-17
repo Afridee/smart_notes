@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:get/get.dart';
 
@@ -32,10 +33,63 @@ class GraphController extends GetxController {
   /// Session cache for "Why?" explanations keyed by `"low_high"` note ids.
   final Map<String, String> whyExplanationCache = {};
 
+  /// Drives pinch/pan on the semantic graph; disposed in [onClose].
+  final TransformationController graphTransform = TransformationController();
+
+  /// After opening the graph from a note tile, we center/zoom once in the viewport.
+  bool _pendingViewportFocus = false;
+
+  bool get pendingGraphViewportFocus => _pendingViewportFocus;
+
   @override
   void onInit() {
     super.onInit();
+    final args = Get.arguments;
+    if (args is Note) {
+      selectedNoteId.value = args.id;
+      _pendingViewportFocus = true;
+    } else {
+      selectedNoteId.value = null;
+    }
     rebuildGraph();
+  }
+
+  @override
+  void onClose() {
+    graphTransform.dispose();
+    super.onClose();
+  }
+
+  /// Centers [nodeCenter] in the graph (child coordinates) in the viewport at [scale].
+  static Matrix4 matrixCenterOnNode(
+    Offset nodeCenter,
+    Size viewport,
+    double scale,
+  ) {
+    return Matrix4.identity()
+      ..translate(viewport.width / 2, viewport.height / 2)
+      ..scale(scale)
+      ..translate(-nodeCenter.dx, -nodeCenter.dy);
+  }
+
+  /// If we opened from a note list deep link, applies zoom/pan and clears the pending flag.
+  void focusGraphViewportOnSelectedIfPending({
+    required Map<int, Offset> positions,
+    required Size viewport,
+    double scale = 1.0,
+  }) {
+    if (!_pendingViewportFocus) return;
+    _pendingViewportFocus = false;
+    final id = selectedNoteId.value;
+    if (id == null) return;
+    final center = positions[id];
+    if (center == null) return;
+    if (!(viewport.width.isFinite && viewport.height.isFinite) ||
+        viewport.width < 1 ||
+        viewport.height < 1) {
+      return;
+    }
+    graphTransform.value = matrixCenterOnNode(center, viewport, scale);
   }
 
   void selectNote(int? id) {

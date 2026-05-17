@@ -109,7 +109,7 @@ class NotesController extends GetxController {
         await _graph.refreshEdgesForNote(note.id);
       }
 
-      saveStatus.value = 'Done';
+      saveStatus.value = '';
       refreshNotes();
       return note;
     } catch (e, st) {
