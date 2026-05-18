@@ -33,8 +33,46 @@ class GraphController extends GetxController {
   /// Session cache for "Why?" explanations keyed by `"low_high"` note ids.
   final Map<String, String> whyExplanationCache = {};
 
+  /// Pair keys ([pairKey]) currently running [generateWhySentence]. Observable
+  /// so sheet rows redraw after minimizing / reopening the bottom sheet while
+  /// inference is still streaming.
+  final whyGeneratingPairs = <String>[].obs;
+
+  /// Incremented whenever [whyExplanationCache] stores a new explanation so
+  /// rows reopening the sheet redraw from cache after off-screen completion.
+  final whyExplanationRevision = 0.obs;
+
+  /// Serialization lock: Gemma exposes one active chat session; [GemmaService.newChat]
+  /// forcibly replaces it, so overlapping "Why?" / chat prompts corrupt streams.
+  Future<void> _whySerial = Future<void>.value();
+
   /// Drives pinch/pan on the semantic graph; disposed in [onClose].
   final TransformationController graphTransform = TransformationController();
+
+  Future<T> _withWhySerialization<T>(Future<T> Function() body) async {
+    final predecessor = _whySerial;
+    final gate = Completer<void>();
+    _whySerial = gate.future;
+    await predecessor;
+    try {
+      return await body();
+    } finally {
+      gate.complete();
+    }
+  }
+
+  bool isWhyGeneratingForPair(int noteIdA, int noteIdB) =>
+      whyGeneratingPairs.contains(pairKey(noteIdA, noteIdB));
+
+  void _whyMarkStart(String key) {
+    if (!whyGeneratingPairs.contains(key)) {
+      whyGeneratingPairs.add(key);
+    }
+  }
+
+  void _whyMarkEnd(String key) {
+    whyGeneratingPairs.remove(key);
+  }
 
   /// After opening the graph from a note tile, we center/zoom once in the viewport.
   bool _pendingViewportFocus = false;
@@ -122,54 +160,67 @@ class GraphController extends GetxController {
     final cached = whyExplanationCache[key];
     if (cached != null && cached.isNotEmpty) return cached;
 
-    if (!_gemma.isReady.value || _gemma.model == null) {
-      throw StateError('Gemma model is not ready.');
-    }
+    return _withWhySerialization(() async {
+      final again = whyExplanationCache[key];
+      if (again != null && again.isNotEmpty) return again;
 
-    String excerpt(String raw) {
-      final t = raw.trim();
-      if (t.length <= 300) return t;
-      return t.substring(0, 300);
-    }
+      if (!_gemma.isReady.value || _gemma.model == null) {
+        throw StateError('Gemma model is not ready.');
+      }
 
-    final prompt =
-        'You are a helpful assistant. Given two note excerpts below, write ONE sentence '
-        'explaining what concept or topic connects them. Be specific, not generic.\n\n'
-        'Note A: ${excerpt(a.body)}\n'
-        'Note B: ${excerpt(b.body)}\n\n'
-        'Respond with only the one sentence explanation. No preamble.';
+      String excerpt(String raw) {
+        final t = raw.trim();
+        if (t.length <= 300) return t;
+        return t.substring(0, 300);
+      }
 
-    final chat = await _gemma.newChat(
-      temperature: 0.35,
-      topK: 32,
-      topP: 0.9,
-    );
-    try {
-      await chat.addQueryChunk(Message.text(text: prompt, isUser: true));
+      final prompt =
+          'You are a helpful assistant. Given two note excerpts below, write ONE sentence '
+          'explaining what concept or topic connects them. Be specific, not generic.\n\n'
+          'Note A: ${excerpt(a.body)}\n'
+          'Note B: ${excerpt(b.body)}\n\n'
+          'Respond with only the one sentence explanation. No preamble.';
 
-      final buf = StringBuffer();
-      final completer = Completer<void>();
-      StreamSubscription<ModelResponse>? sub;
-      sub = chat.generateChatResponseAsync().listen(
-        (resp) {
-          if (resp is TextResponse) buf.write(resp.token);
-        },
-        onError: (e, _) {
-          if (!completer.isCompleted) completer.completeError(e);
-        },
-        onDone: () {
-          if (!completer.isCompleted) completer.complete();
-        },
-      );
-      await completer.future;
-      await sub.cancel();
+      _whyMarkStart(key);
+      try {
+        final chat = await _gemma.newChat(
+          temperature: 0.35,
+          topK: 32,
+          topP: 0.9,
+        );
+        try {
+          await chat.addQueryChunk(Message.text(text: prompt, isUser: true));
 
-      final text = buf.toString().trim();
-      if (text.isNotEmpty) whyExplanationCache[key] = text;
-      return text.isEmpty ? '(No response)' : text;
-    } finally {
-      await chat.close();
-    }
+          final buf = StringBuffer();
+          final completer = Completer<void>();
+          StreamSubscription<ModelResponse>? sub;
+          sub = chat.generateChatResponseAsync().listen(
+            (resp) {
+              if (resp is TextResponse) buf.write(resp.token);
+            },
+            onError: (e, _) {
+              if (!completer.isCompleted) completer.completeError(e);
+            },
+            onDone: () {
+              if (!completer.isCompleted) completer.complete();
+            },
+          );
+          await completer.future;
+          await sub.cancel();
+
+          final text = buf.toString().trim();
+          if (text.isNotEmpty) {
+            whyExplanationCache[key] = text;
+            whyExplanationRevision.value++;
+          }
+          return text.isEmpty ? '(No response)' : text;
+        } finally {
+          await chat.close();
+        }
+      } finally {
+        _whyMarkEnd(key);
+      }
+    });
   }
 
   double opacityForNode(int noteId) {

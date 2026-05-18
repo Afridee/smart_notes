@@ -8,6 +8,12 @@ import '../../../routes/app_routes.dart';
 import '../../../services/gemma_service.dart';
 import '../controllers/graph_controller.dart';
 
+/// Subscribes [Obx] to graph "Why?" reactive fields (side effect only).
+void _consumeWhyRebuildSignals(GraphController g) {
+  g.whyExplanationRevision.value;
+  g.whyGeneratingPairs.length;
+}
+
 class GraphNodeSheet extends StatelessWidget {
   const GraphNodeSheet({super.key, required this.note});
 
@@ -167,28 +173,24 @@ class _RelatedWhyRow extends StatefulWidget {
 }
 
 class _RelatedWhyRowState extends State<_RelatedWhyRow> {
-  bool _loading = false;
-  String? _text;
+  /// Outcomes we do not persist in [GraphController.whyExplanationCache], e.g.
+  /// `'(No response)'`, so the row can still show them without an Obx bump.
+  String? _localExplanation;
 
   GraphController get _g => Get.find<GraphController>();
 
   GemmaService get _gemma => Get.find<GemmaService>();
 
-  @override
-  void initState() {
-    super.initState();
-    final key = _g.pairKey(widget.focus.id, widget.related.id);
-    _text = _g.whyExplanationCache[key];
-  }
+  String get _pairKey => _g.pairKey(widget.focus.id, widget.related.id);
 
   Future<void> _onWhy() async {
-    if (_loading) return;
-    final key = _g.pairKey(widget.focus.id, widget.related.id);
+    final key = _pairKey;
     final cached = _g.whyExplanationCache[key];
     if (cached != null && cached.isNotEmpty) {
-      setState(() => _text = cached);
+      setState(() => _localExplanation = null);
       return;
     }
+    if (_g.whyGeneratingPairs.contains(key)) return;
 
     if (!_gemma.isReady.value) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -197,18 +199,15 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
       return;
     }
 
-    setState(() => _loading = true);
     try {
       final s = await _g.generateWhySentence(widget.focus, widget.related);
-      if (mounted) setState(() => _text = s);
+      if (mounted) setState(() => _localExplanation = s);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Could not explain: $e')),
         );
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -218,86 +217,101 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
         ? '(Untitled)'
         : widget.related.title;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  Navigator.of(context).pop();
-                  Get.toNamed(AppRoutes.noteEditor, arguments: widget.related);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.syne(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
+    return Obx(() {
+      _consumeWhyRebuildSignals(_g);
+      final pk = _pairKey;
+      final cached = _g.whyExplanationCache[pk];
+      final displayed =
+          (cached != null && cached.isNotEmpty) ? cached : _localExplanation;
+      final hasExplained =
+          displayed != null && displayed.isNotEmpty;
+      final generating = _g.whyGeneratingPairs.contains(pk);
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    Get.toNamed(
+                      AppRoutes.noteEditor,
+                      arguments: widget.related,
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.syne(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '${widget.scorePercent}% similar',
-                        style: GoogleFonts.syne(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.5),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${widget.scorePercent}% similar',
+                          style: GoogleFonts.syne(
+                            fontSize: 12,
+                            color: Colors.white.withOpacity(0.5),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              if (!hasExplained && !generating)
+                TextButton(
+                  onPressed: _onWhy,
+                  child: Text(
+                    'Why?',
+                    style: GoogleFonts.syne(
+                      color: const Color(0xFFB8B3FF),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (generating)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: Shimmer.fromColors(
+                baseColor: Colors.white.withOpacity(0.08),
+                highlightColor: Colors.white.withOpacity(0.22),
+                child: Container(
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
               ),
             ),
-            if (_text == null && !_loading)
-              TextButton(
-                onPressed: _onWhy,
-                child: Text(
-                  'Why?',
-                  style: GoogleFonts.syne(
-                    color: const Color(0xFFB8B3FF),
-                  ),
-                ),
-              ),
-          ],
-        ),
-        if (_loading)
-          Padding(
-            padding: const EdgeInsets.only(top: 6, bottom: 8),
-            child: Shimmer.fromColors(
-              baseColor: Colors.white.withOpacity(0.08),
-              highlightColor: Colors.white.withOpacity(0.22),
-              child: Container(
-                height: 14,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(4),
+          if (hasExplained)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10, top: 4),
+              child: Text(
+                displayed,
+                style: GoogleFonts.syne(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: Colors.white.withOpacity(0.82),
                 ),
               ),
             ),
-          ),
-        if (_text != null && _text!.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10, top: 4),
-            child: Text(
-              _text!,
-              style: GoogleFonts.syne(
-                fontSize: 13,
-                height: 1.35,
-                color: Colors.white.withOpacity(0.82),
-              ),
-            ),
-          ),
-      ],
-    );
+        ],
+      );
+    });
   }
 }
+
