@@ -2,6 +2,8 @@ import 'package:get/get.dart';
 
 import '../features/chat/chat_binding.dart';
 import '../features/chat/views/chat_page.dart';
+import '../features/graph/graph_binding.dart';
+import '../features/graph/views/graph_screen.dart';
 import '../features/notes/notes_binding.dart';
 import '../features/notes/views/note_editor_page.dart';
 import '../features/notes/views/notes_list_page.dart';
@@ -30,6 +32,11 @@ abstract class AppPages {
       name: AppRoutes.chat,
       page: () => const ChatPage(),
       binding: ChatBinding(),
+    ),
+    GetPage(
+      name: AppRoutes.graph,
+      page: () => const GraphScreen(),
+      binding: GraphBinding(),
     ),
   ];
 

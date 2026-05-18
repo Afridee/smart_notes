@@ -3,4 +3,5 @@ abstract class AppRoutes {
   static const notes = '/notes';
   static const noteEditor = '/notes/edit';
   static const chat = '/chat';
+  static const graph = '/graph';
 }

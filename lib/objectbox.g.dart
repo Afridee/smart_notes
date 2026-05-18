@@ -16,6 +16,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 
 import 'data/models/note.dart';
 import 'data/models/note_chunk.dart';
+import 'data/models/note_edge.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
 
@@ -23,7 +24,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 3846300818630381873),
     name: 'Note',
-    lastPropertyId: const obx_int.IdUid(5, 2894548097151026698),
+    lastPropertyId: const obx_int.IdUid(6, 6738492019384756102),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -54,6 +55,12 @@ final _entities = <obx_int.ModelEntity>[
         id: const obx_int.IdUid(5, 2894548097151026698),
         name: 'updatedAt',
         type: 10,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(6, 6738492019384756102),
+        name: 'noteEmbedding',
+        type: 28,
         flags: 0,
       ),
     ],
@@ -117,6 +124,40 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(3, 7283746510293847561),
+    name: 'NoteEdge',
+    lastPropertyId: const obx_int.IdUid(4, 8374650192837465109),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 1029384756102938475),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 2938475610293847561),
+        name: 'noteIdA',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 3847561029384756102),
+        name: 'noteIdB',
+        type: 6,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 8374650192837465109),
+        name: 'similarityScore',
+        type: 8,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -152,17 +193,12 @@ Future<obx.Store> openStore({
   );
 }
 
-/// Returns the ObjectBox model definition for this project for use with
-/// [obx.Store.new].
+/// Returns the ObjectBox model definition for use with [obx.Store.new].
 obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
-    // If this version is not found, it means that this file was generated
-    // with an older version of the ObjectBox Dart generator.
-    // Please regenerate this file with the current generator version.
-    // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(2, 6380278326908799177),
+    lastEntityId: const obx_int.IdUid(3, 7283746510293847561),
     lastIndexId: const obx_int.IdUid(2, 1720658735915024289),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
@@ -172,7 +208,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
     retiredRelationUids: const [],
     modelVersion: 5,
     modelVersionParserMinimum: 5,
-    version: 1,
+    version: 2,
   );
 
   final bindings = <Type, obx_int.EntityDefinition>{
@@ -187,12 +223,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
       objectToFB: (Note object, fb.Builder fbb) {
         final titleOffset = fbb.writeString(object.title);
         final bodyOffset = fbb.writeString(object.body);
-        fbb.startTable(6);
+        final noteEmbeddingOffset = fbb.writeListFloat32(object.noteEmbedding);
+        fbb.startTable(7);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, titleOffset);
         fbb.addOffset(2, bodyOffset);
         fbb.addInt64(3, object.createdAt.millisecondsSinceEpoch);
         fbb.addInt64(4, object.updatedAt.millisecondsSinceEpoch);
+        fbb.addOffset(5, noteEmbeddingOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -217,12 +255,17 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final updatedAtParam = DateTime.fromMillisecondsSinceEpoch(
           const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0),
         );
+        final noteEmbeddingParam = const fb.ListReader<double>(
+          fb.Float32Reader(),
+          lazy: false,
+        ).vTableGet(buffer, rootOffset, 14, []);
         final object = Note(
           id: idParam,
           title: titleParam,
           body: bodyParam,
           createdAt: createdAtParam,
           updatedAt: updatedAtParam,
+          noteEmbedding: noteEmbeddingParam,
         );
 
         return object;
@@ -297,6 +340,58 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    NoteEdge: obx_int.EntityDefinition<NoteEdge>(
+      model: _entities[2],
+      toOneRelations: (NoteEdge object) => [],
+      toManyRelations: (NoteEdge object) => {},
+      getId: (NoteEdge object) => object.id,
+      setId: (NoteEdge object, int id) {
+        object.id = id;
+      },
+      objectToFB: (NoteEdge object, fb.Builder fbb) {
+        fbb.startTable(5);
+        fbb.addInt64(0, object.id);
+        fbb.addInt64(1, object.noteIdA);
+        fbb.addInt64(2, object.noteIdB);
+        fbb.addFloat64(3, object.similarityScore);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final noteIdAParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          6,
+          0,
+        );
+        final noteIdBParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          8,
+          0,
+        );
+        final similarityScoreParam = const fb.Float64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          10,
+          0,
+        );
+        return NoteEdge(
+          id: idParam,
+          noteIdA: noteIdAParam,
+          noteIdB: noteIdBParam,
+          similarityScore: similarityScoreParam,
+        );
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -323,6 +418,11 @@ class Note_ {
   /// See [Note.updatedAt].
   static final updatedAt = obx.QueryDateProperty<Note>(
     _entities[0].properties[4],
+  );
+
+  /// See [Note.noteEmbedding].
+  static final noteEmbedding = obx.QueryDoubleVectorProperty<Note>(
+    _entities[0].properties[5],
   );
 }
 
@@ -361,5 +461,28 @@ class NoteChunk_ {
   /// See [NoteChunk.contextHeader].
   static final contextHeader = obx.QueryStringProperty<NoteChunk>(
     _entities[1].properties[6],
+  );
+}
+
+/// [NoteEdge] entity fields to define ObjectBox queries.
+class NoteEdge_ {
+  /// See [NoteEdge.id].
+  static final id = obx.QueryIntegerProperty<NoteEdge>(
+    _entities[2].properties[0],
+  );
+
+  /// See [NoteEdge.noteIdA].
+  static final noteIdA = obx.QueryIntegerProperty<NoteEdge>(
+    _entities[2].properties[1],
+  );
+
+  /// See [NoteEdge.noteIdB].
+  static final noteIdB = obx.QueryIntegerProperty<NoteEdge>(
+    _entities[2].properties[2],
+  );
+
+  /// See [NoteEdge.similarityScore].
+  static final similarityScore = obx.QueryDoubleProperty<NoteEdge>(
+    _entities[2].properties[3],
   );
 }

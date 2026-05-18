@@ -60,9 +60,35 @@ class ChatController extends GetxController {
   InferenceChat? _chat;
   StreamSubscription<ModelResponse>? _activeSub;
 
+  /// One chat for RAG; reset native history each turn instead of
+  /// newChat/close cycles that can trip LiteRT on some devices.
   Future<void> _ensureChat() async {
-    if (_chat != null) return;
+    final m = _gemma.model;
+    if (_chat != null && m?.chat == _chat) return;
+    _chat = null;
     _chat = await _gemma.newChat(systemInstruction: _rag.systemInstruction);
+  }
+
+  Future<void> _resetChatSession() async {
+    final c = _chat;
+    if (c == null) return;
+    try {
+      await c.stopGeneration();
+    } catch (_) {}
+    try {
+      await c.clearHistory();
+    } catch (e, st) {
+      log(
+        'ChatController: clearHistory failed, dropping chat',
+        name: 'ChatController',
+        error: e,
+        stackTrace: st,
+      );
+      try {
+        await c.close();
+      } catch (_) {}
+      _chat = null;
+    }
   }
 
   Future<void> ask(String question) async {
@@ -76,15 +102,22 @@ class ChatController extends GetxController {
     messages.add(assistant);
 
     try {
-      await _ensureChat();
-
       final qVec = await _embedder.embed(q, taskType: TaskType.retrievalQuery);
       stage.value = 'Searching notes…';
-      final hits = await _vectorStore.searchSimilar(qVec, k: 3);
+      // Hybrid retrieval: HNSW dense + BM25 lexical fusion, then MMR to drop
+      // near-duplicate chunks (often three slices of the same long note)
+      // before they eat the prompt budget. Defaults inside [searchHybrid]
+      // give us a 12-chunk pool, 0.7 MMR lambda, and a 0.3 BM25 weight.
+      final hits = await _vectorStore.searchHybrid(
+        queryText: q,
+        queryVec: qVec,
+        k: 3,
+      );
 
       final prompt = _rag.buildPrompt(question: q, retrieved: hits);
 
       stage.value = 'Generating…';
+      await _ensureChat();
       await _chat!.addQueryChunk(Message.text(text: prompt, isUser: true));
       final completer = Completer<void>();
       _activeSub = _chat!.generateChatResponseAsync().listen(
@@ -119,17 +152,23 @@ class ChatController extends GetxController {
       isAnswering.value = false;
       await _activeSub?.cancel();
       _activeSub = null;
+      await _resetChatSession();
     }
   }
 
-  void clear() {
+  Future<void> clear() async {
     messages.clear();
+    await _activeSub?.cancel();
+    _activeSub = null;
+    await _gemma.closeCurrentChat();
     _chat = null;
   }
 
   @override
   void onClose() {
     _activeSub?.cancel();
+    final c = _chat;
+    if (c != null) unawaited(c.close());
     super.onClose();
   }
 }

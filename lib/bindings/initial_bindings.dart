@@ -5,6 +5,7 @@ import '../services/chunker_service.dart';
 import '../services/embedding_service.dart';
 import '../services/gemma_service.dart';
 import '../services/rag_service.dart';
+import '../services/note_graph_service.dart';
 import '../services/vector_store_service.dart';
 
 /// Boot-time DI graph.
@@ -25,6 +26,14 @@ class InitialBindings extends Bindings {
 
     Get.lazyPut<VectorStoreService>(
       () => VectorStoreService(Get.find<ObjectBox>()),
+      fenix: true,
+    );
+
+    Get.lazyPut<NoteGraphService>(
+      () => NoteGraphService(
+        Get.find<ObjectBox>(),
+        Get.find<VectorStoreService>(),
+      ),
       fenix: true,
     );
   }

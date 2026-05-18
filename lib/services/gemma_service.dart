@@ -15,6 +15,9 @@ class GemmaService extends GetxService {
 
   static const ModelType modelType = ModelType.gemmaIt;
   static const ModelFileType fileType = ModelFileType.litertlm;
+  /// Context window for the LiteRT session. Gemma 4 / `.litertlm` often fails
+  /// inference (invoke status 13) if this is too small for template + RAG input.
+  /// RAG still truncates via [RagService] to limit actual prompt size.
   static const int defaultMaxTokens = 2048;
 
   final isInstalled = false.obs;
@@ -24,6 +27,28 @@ class GemmaService extends GetxService {
 
   InferenceModel? _model;
   InferenceModel? get model => _model;
+
+  /// Context window size of the loaded inference model (for RAG prompt budgeting).
+  int get loadedMaxTokens => _model?.maxTokens ?? defaultMaxTokens;
+
+  Future<void> _closeChat(InferenceChat? chat) async {
+    if (chat == null) return;
+    try {
+      await chat.close();
+    } catch (e, st) {
+      log(
+        'GemmaService: failed to close chat (may already be closed)',
+        name: 'GemmaService',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// Releases the active [InferenceModel.chat] session, if any.
+  Future<void> closeCurrentChat() async {
+    await _closeChat(_model?.chat);
+  }
 
   Future<GemmaService> ensureInstalled({
     String? url,
@@ -75,6 +100,9 @@ class GemmaService extends GetxService {
     if (m == null) {
       throw StateError('GemmaService.warmup() must be called before newChat().');
     }
+    // flutter_gemma overwrites [InferenceModel.chat] without closing the old
+    // session; leak / memory growth otherwise.
+    await _closeChat(m.chat);
     return m.createChat(
       temperature: temperature,
       topK: topK,

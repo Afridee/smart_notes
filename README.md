@@ -1,6 +1,75 @@
-# smart_notes
+# Smart Notes
 
-Flutter app for notes with **on-device RAG** (retrieval-augmented generation): notes are chunked, embedded, and stored locally; questions retrieve relevant chunks and are answered with an on-device model.
+Flutter app for **local notes** with **on-device RAG** (retrieval-augmented generation). Notes are chunked, embedded, and stored on-device; the chat retrieves relevant passages and answers with a **Gemma** model running locally—no cloud LLM required for inference.
+
+## Features
+
+- **On-device models** — First-run setup downloads **Gemma** (inference) and **EmbeddingGemma** (vectors) via `flutter_gemma`; models stay on the device after setup.
+- **Private RAG chat** — Ask questions over your notes; answers use retrieved chunks only, with **chunk citations** and **Markdown**-friendly replies (`gpt_markdown`).
+- **Semantic note graph** — Visual graph of notes linked by **embedding similarity** (ObjectBox + heuristics for large libraries); explore how notes relate without manual tagging.
+- **Note workspace** — Create and edit notes, **search** the library, and browse in a **staggered grid** layout.
+- **Material 3** — Light/dark themes with a consistent indigo seed palette (`GetX` for routing and state).
+
+## Requirements
+
+- **[FVM](https://fvm.app/)** — This repo pins the Flutter SDK via [`.fvmrc`](.fvmrc) (currently the **`stable`** channel). Use FVM so everyone runs the same toolchain.
+- **Hugging Face token (recommended)** — **EmbeddingGemma** is gated. Create a token, accept the model license on Hugging Face, then pass the token at run time (see [Quick start](#quick-start)).
+- **Targets** — iOS / Android / desktop per your Flutter install; device storage for model files.
+
+## Quick start (FVM)
+
+1. **Install FVM** (once per machine), if needed:
+
+   ```bash
+   dart pub global activate fvm
+   ```
+
+   Ensure `fvm` is on your `PATH` (see [FVM install docs](https://fvm.app/documentation/getting-started/installation)).
+
+2. **Clone and enter the project:**
+
+   ```bash
+   git clone <repository-url>
+   cd smart_notes
+   ```
+
+3. **Install the Flutter SDK version from `.fvmrc`** (creates `.fvm/flutter_sdk`; this folder is gitignored):
+
+   ```bash
+   fvm install
+   ```
+
+4. **Get dependencies:**
+
+   ```bash
+   fvm flutter pub get
+   ```
+
+5. **Hugging Face token (for EmbeddingGemma)**  
+   Copy the example config and add your `hf_...` token:
+
+   ```bash
+   cp config.json.example config.json
+   # Edit config.json — set "HUGGINGFACE_TOKEN" (do not commit real secrets)
+   ```
+
+6. **Run the app** (defines are read in `main.dart` / setup):
+
+   ```bash
+   fvm flutter run --dart-define-from-file=config.json
+   ```
+
+   Without a token, Gemma may still download but the embedder step can fail with auth/license errors; the setup screen explains this.
+
+### Useful commands
+
+| Task | Command |
+|------|---------|
+| Doctor | `fvm flutter doctor` |
+| Tests | `fvm flutter test` |
+| Codegen (after changing ObjectBox entities) | `fvm dart run build_runner build --delete-conflicting-outputs` |
+
+IDE tip: the repo includes [`.vscode/settings.json`](.vscode/settings.json) pointing Dart at `.fvm/flutter_sdk` when you use FVM’s local SDK.
 
 ## Architecture
 
@@ -19,21 +88,20 @@ On-device RAG uses `flutter_gemma` for embeddings and inference, and **ObjectBox
 
 1. **Ask a question** — user query in chat.
 2. **Embed question** — same `EmbeddingGemma` model as for notes.
-3. **Vector search** — nearest neighbors in ObjectBox (e.g. top 3 chunks).
-4. **Build prompt** — retrieved chunks are injected into a template.
-5. **Gemma (on-device)** — `flutter_gemma` runs the shared on-device LLM on the prompt.
+3. **Vector search** — nearest neighbors in ObjectBox (e.g. top chunks).
+4. **Build prompt** — retrieved chunks are injected into a template (`RagService`).
+5. **Gemma (on-device)** — `flutter_gemma` runs the on-device LLM on the prompt.
 6. **Answer in chat** — response is shown to the user.
 
-## Getting Started
+## Project layout (high level)
 
-This project is a starting point for a Flutter application.
+- `lib/features/setup` — first-run model download and warmup.
+- `lib/features/notes` — list, editor, search.
+- `lib/features/chat` — RAG-backed Q&A.
+- `lib/features/graph` — semantic similarity graph UI.
+- `lib/services` — chunking, embeddings, vector store, RAG, graph logic.
+- `lib/data` — ObjectBox models and store.
 
-A few resources to get you started if this is your first Flutter project:
+## License / third-party
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Model weights and Hugging Face terms apply to downloaded artifacts; use your app’s license for this repository’s code as you choose.

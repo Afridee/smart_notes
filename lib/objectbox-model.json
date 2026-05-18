@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:3846300818630381873",
-      "lastPropertyId": "5:2894548097151026698",
+      "lastPropertyId": "6:6738492019384756102",
       "name": "Note",
       "properties": [
         {
@@ -33,6 +33,12 @@
           "id": "5:2894548097151026698",
           "name": "updatedAt",
           "type": 10
+        },
+        {
+          "id": "6:6738492019384756102",
+          "name": "noteEmbedding",
+          "type": 28,
+          "flags": 0
         }
       ],
       "relations": []
@@ -85,9 +91,38 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "3:7283746510293847561",
+      "lastPropertyId": "4:8374650192837465109",
+      "name": "NoteEdge",
+      "properties": [
+        {
+          "id": "1:1029384756102938475",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:2938475610293847561",
+          "name": "noteIdA",
+          "type": 6
+        },
+        {
+          "id": "3:3847561029384756102",
+          "name": "noteIdB",
+          "type": 6
+        },
+        {
+          "id": "4:8374650192837465109",
+          "name": "similarityScore",
+          "type": 8
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "2:6380278326908799177",
+  "lastEntityId": "3:7283746510293847561",
   "lastIndexId": "2:1720658735915024289",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
@@ -97,5 +132,5 @@
   "retiredIndexUids": [],
   "retiredPropertyUids": [],
   "retiredRelationUids": [],
-  "version": 1
+  "version": 2
 }

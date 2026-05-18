@@ -3,12 +3,12 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 
 import 'app.dart';
 
-void main() {
+void main() async{
   WidgetsFlutterBinding.ensureInitialized();
 
   const hfToken =
       String.fromEnvironment('HUGGINGFACE_TOKEN', defaultValue: '');
-  FlutterGemma.initialize(
+  await FlutterGemma.initialize(
     huggingFaceToken: hfToken.isNotEmpty ? hfToken : null,
   );
 

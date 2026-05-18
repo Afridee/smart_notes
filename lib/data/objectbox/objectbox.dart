@@ -4,16 +4,19 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/note.dart';
 import '../models/note_chunk.dart';
+import '../models/note_edge.dart';
 import '../../objectbox.g.dart';
 
 class ObjectBox {
   ObjectBox._(this.store)
       : noteBox = store.box<Note>(),
-        chunkBox = store.box<NoteChunk>();
+        chunkBox = store.box<NoteChunk>(),
+        edgeBox = store.box<NoteEdge>();
 
   final Store store;
   final Box<Note> noteBox;
   final Box<NoteChunk> chunkBox;
+  final Box<NoteEdge> edgeBox;
 
   static Future<ObjectBox> open() async {
     final docsDir = await getApplicationDocumentsDirectory();
