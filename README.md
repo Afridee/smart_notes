@@ -73,24 +73,25 @@ IDE tip: the repo includes [`.vscode/settings.json`](.vscode/settings.json) poin
 
 ## Architecture
 
-On-device RAG uses `flutter_gemma` for embeddings and inference, and **ObjectBox** as the local vector store (HNSW index).
+On-device RAG uses `flutter_gemma` for embeddings and inference (**EmbeddingGemma** + **gemma-4-E4B-it**), **ObjectBox** as the local vector store (HNSW), and **hybrid retrieval** (dense + BM25, fusion, and MMR) before prompting.
 
 ![On-device RAG architecture](docs/assets/rag-architecture.png)
 
 ### Save note flow
 
 1. **Write a note** — user creates content.
-2. **Chunk note text** — split into segments (about 500 tokens).
-3. **Embed chunks** — `EmbeddingGemma` (`flutter_gemma`) produces vectors.
-4. **Store in ObjectBox** — text, vectors, and metadata are indexed (HNSW) for search.
+2. **Chunk note text** — split into segments (about 480 tokens).
+3. **Prepend context** — title and timestamps are attached to each chunk.
+4. **Embed chunks** — `EmbeddingGemma` (`flutter_gemma`) produces vectors.
+5. **Store in ObjectBox** — text, vectors, and metadata are indexed (HNSW) for search.
 
 ### Ask question flow
 
 1. **Ask a question** — user query in chat.
 2. **Embed question** — same `EmbeddingGemma` model as for notes.
-3. **Vector search** — nearest neighbors in ObjectBox (e.g. top chunks).
-4. **Build prompt** — retrieved chunks are injected into a template (`RagService`).
-5. **Gemma (on-device)** — `flutter_gemma` runs the on-device LLM on the prompt.
+3. **Hybrid retrieval** — dense HNSW pool (top 12), BM25 scoring, weighted fusion (`0.7 × dense + 0.3 × BM25`), MMR re-rank (λ = 0.7), then **top 3** chunks for the prompt.
+4. **Build prompt** — retrieved chunks, the question, and instructions (`RagService`).
+5. **Gemma 4 E4B IT (on-device)** — instruction-tuned model via `flutter_gemma`.
 6. **Answer in chat** — response is shown to the user.
 
 ## Project layout (high level)
