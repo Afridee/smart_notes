@@ -390,7 +390,7 @@ class _GraphViewportState extends State<_GraphViewport> {
                   painter: _EdgesPainter(
                     edges: widget.edges,
                     positions: widget.layout.positions,
-                    threshold: kGraphSimilarityThreshold,
+                    threshold: kGraphSimilarityFloor,
                   ),
                 ),
                 for (final note in widget.notes)

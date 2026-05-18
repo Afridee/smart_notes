@@ -12,13 +12,22 @@ import 'vector_store_service.dart';
 /// Chunk / note embedding dimension for EmbeddingGemma in this app.
 const int kNoteEmbeddingDimensions = 768;
 
-/// Minimum cosine similarity to persist an undirected note pair.
-///
-/// EmbeddingGemma scores related-but-not-paraphrased short notes around
-/// 0.55–0.75; the per-chunk header (title + dates) drags pairwise scores
-/// down further. 0.55 is empirically a reasonable starting point — tune
-/// up for stricter graphs or down for noisier ones.
-const double kGraphSimilarityThreshold = 0.55;
+/// Hard lower bound for the final max-sim score before we will draw an edge
+/// at all. Anything below this is treated as unrelated even if it happens to
+/// be a note's top neighbour. EmbeddingGemma puts noise pairs around
+/// 0.15–0.30, so 0.35 buys headroom without being model-specific.
+const double kGraphSimilarityFloor = 0.35;
+
+/// Maximum edges a single note may anchor in the graph. The graph is the
+/// union of every note's top-K, so verbose notes can't flood the layout and
+/// short notes still get a fair shot at connecting to their closest peers.
+const int kGraphTopKPerNote = 8;
+
+/// First-stage filter for candidate generation using averaged note vectors
+/// (cheap O(N·D)). Anything below this won't be re-ranked with max-sim. Kept
+/// deliberately low so we don't prune real matches that average-pooling
+/// happens to dilute.
+const double kGraphCandidatePrefilter = 0.30;
 
 /// Above this note count, the graph view only draws edges among the top-K
 /// hubs by degree ([kGraphHubCount]).
@@ -58,6 +67,44 @@ double cosineSimilarity(List<double> a, List<double> b) {
   }
   if (na <= 0 || nb <= 0) return 0;
   return dot / (math.sqrt(na) * math.sqrt(nb));
+}
+
+/// Symmetric ColBERT-style max-sim aggregation between two bags of chunk
+/// embeddings. For every chunk in [chunksA] we pick the cosine-similarity to
+/// its single best counterpart in [chunksB] and average those maxes; we do
+/// the same in the reverse direction and return the mean. The two-sided
+/// average keeps the score symmetric (so the same edge wins from either
+/// note's refresh) and bounded in `[-1, 1]`.
+///
+/// This avoids the averaging-dilution problem of comparing mean note
+/// vectors: a short note that's a strong match for one paragraph of a long
+/// note still scores highly.
+double maxSimSymmetric(
+  List<List<double>> chunksA,
+  List<List<double>> chunksB,
+) {
+  final n = chunksA.length;
+  final m = chunksB.length;
+  if (n == 0 || m == 0) return 0;
+  final rowMax = List<double>.filled(n, double.negativeInfinity);
+  final colMax = List<double>.filled(m, double.negativeInfinity);
+  for (var i = 0; i < n; i++) {
+    final a = chunksA[i];
+    for (var k = 0; k < m; k++) {
+      final s = cosineSimilarity(a, chunksB[k]);
+      if (s > rowMax[i]) rowMax[i] = s;
+      if (s > colMax[k]) colMax[k] = s;
+    }
+  }
+  var sumRow = 0.0;
+  for (final v in rowMax) {
+    sumRow += v;
+  }
+  var sumCol = 0.0;
+  for (final v in colMax) {
+    sumCol += v;
+  }
+  return 0.5 * (sumRow / n + sumCol / m);
 }
 
 /// Notes indexed for the semantic graph (embedding + edges).
@@ -147,6 +194,21 @@ class NoteGraphService extends GetxService {
     }
   }
 
+  /// Recomputes [noteId]'s outgoing edges using a two-stage retrieval:
+  ///
+  ///   1. **Candidate generation** — cheap cosine over averaged note
+  ///      vectors, filtered by [kGraphCandidatePrefilter]. This is O(N·D)
+  ///      and is just trying to throw out obviously-unrelated notes.
+  ///   2. **Max-sim re-rank** — symmetric per-chunk max-sim
+  ///      ([maxSimSymmetric]) over the surviving candidates. This is the
+  ///      score that actually decides which edges live.
+  ///
+  /// We then take the top [kGraphTopKPerNote] candidates that clear
+  ///[kGraphSimilarityFloor] and persist them. The graph is the union of
+  /// every note's top-K, which gives short notes a fair shot at appearing
+  /// in the graph without letting verbose notes flood it (a single hard
+  /// cutoff biases against the former and is biased *by* model calibration
+  /// for the latter).
   Future<void> refreshEdgesForNote(int noteId) async {
     await deleteEdgesForNote(noteId);
 
@@ -159,42 +221,88 @@ class NoteGraphService extends GetxService {
       return;
     }
 
-    final vec = self.noteEmbedding;
+    final selfVec = self.noteEmbedding;
+    final selfChunkVecs = _validChunkVectors(noteId);
+
     final others = _box.noteBox
         .getAll()
         .where((n) => n.id != noteId && hasValidNoteEmbedding(n))
         .toList();
 
-    final scored = <(int otherId, String title, double score, bool kept)>[];
-    final edges = <NoteEdge>[];
+    // Stage 1: cheap mean-vector prefilter.
+    final candidates = <_Candidate>[];
     for (final o in others) {
-      final score = cosineSimilarity(vec, o.noteEmbedding);
-      final keep = score >= kGraphSimilarityThreshold;
-      scored.add((o.id, o.title, score, keep));
-      if (!keep) continue;
-      final a = noteId < o.id ? noteId : o.id;
-      final b = noteId < o.id ? o.id : noteId;
-      edges.add(NoteEdge(noteIdA: a, noteIdB: b, similarityScore: score));
+      final mean = cosineSimilarity(selfVec, o.noteEmbedding);
+      if (mean < kGraphCandidatePrefilter) {
+        candidates.add(_Candidate(o, mean, null, kept: false));
+        continue;
+      }
+      candidates.add(_Candidate(o, mean, null, kept: false));
     }
 
+    // Stage 2: max-sim re-rank for survivors of the prefilter.
+    for (final c in candidates) {
+      if (c.mean < kGraphCandidatePrefilter) continue;
+      final otherChunkVecs = _validChunkVectors(c.note.id);
+      c.maxSim = maxSimSymmetric(selfChunkVecs, otherChunkVecs);
+    }
+
+    // Pick top-K by max-sim, applying the floor.
+    final reranked = candidates
+        .where((c) => c.maxSim != null && c.maxSim! >= kGraphSimilarityFloor)
+        .toList()
+      ..sort((a, b) => b.maxSim!.compareTo(a.maxSim!));
+    final kept = reranked.take(kGraphTopKPerNote).toList();
+    final keptIds = {for (final r in kept) r.note.id};
+    for (final c in candidates) {
+      c.kept = keptIds.contains(c.note.id);
+    }
+
+    final edges = <NoteEdge>[];
+    for (final r in kept) {
+      final otherId = r.note.id;
+      final a = noteId < otherId ? noteId : otherId;
+      final b = noteId < otherId ? otherId : noteId;
+      edges.add(NoteEdge(noteIdA: a, noteIdB: b, similarityScore: r.maxSim!));
+    }
     if (edges.isNotEmpty) {
       _box.edgeBox.putMany(edges);
     }
 
-    scored.sort((a, b) => b.$3.compareTo(a.$3));
+    candidates.sort((a, b) {
+      final ax = a.maxSim ?? a.mean;
+      final bx = b.maxSim ?? b.mean;
+      return bx.compareTo(ax);
+    });
     final report = StringBuffer()
       ..writeln(
         'refreshEdges note=$noteId "${self.title}" '
-        'threshold=${kGraphSimilarityThreshold.toStringAsFixed(2)} '
-        'kept=${edges.length}/${scored.length}',
+        'others=${others.length} '
+        'prefilter\u2265${kGraphCandidatePrefilter.toStringAsFixed(2)} '
+        'floor\u2265${kGraphSimilarityFloor.toStringAsFixed(2)} '
+        'K=$kGraphTopKPerNote kept=${kept.length}',
       );
-    for (final s in scored) {
+    for (final c in candidates.take(20)) {
+      final mark = c.kept ? '\u2713' : ' ';
+      final ms = c.maxSim == null
+          ? '   -  '
+          : c.maxSim!.toStringAsFixed(3);
       report.writeln(
-        '  ${s.$4 ? '✓' : ' '} ${s.$3.toStringAsFixed(3)}  '
-        'note=${s.$1} "${s.$2}"',
+        '  $mark maxsim=$ms  mean=${c.mean.toStringAsFixed(3)}  '
+        'note=${c.note.id} "${c.note.title}"',
       );
     }
     log(report.toString().trimRight(), name: 'NoteGraphService');
+  }
+
+  List<List<double>> _validChunkVectors(int noteId) {
+    final out = <List<double>>[];
+    for (final c in _vectorStore.getChunksForNote(noteId)) {
+      if (c.embedding.length == kNoteEmbeddingDimensions) {
+        out.add(c.embedding);
+      }
+    }
+    return out;
   }
 
   List<NoteEdge> edgesTouching(int noteId) {
@@ -267,4 +375,12 @@ class NoteGraphService extends GetxService {
   }
 
   Note? getNote(int id) => _box.noteBox.get(id);
+}
+
+class _Candidate {
+  _Candidate(this.note, this.mean, this.maxSim, {this.kept = false});
+  final Note note;
+  final double mean;
+  double? maxSim;
+  bool kept;
 }

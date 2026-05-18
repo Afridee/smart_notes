@@ -104,7 +104,15 @@ class ChatController extends GetxController {
     try {
       final qVec = await _embedder.embed(q, taskType: TaskType.retrievalQuery);
       stage.value = 'Searching notes…';
-      final hits = await _vectorStore.searchSimilar(qVec, k: 3);
+      // Hybrid retrieval: HNSW dense + BM25 lexical fusion, then MMR to drop
+      // near-duplicate chunks (often three slices of the same long note)
+      // before they eat the prompt budget. Defaults inside [searchHybrid]
+      // give us a 12-chunk pool, 0.7 MMR lambda, and a 0.3 BM25 weight.
+      final hits = await _vectorStore.searchHybrid(
+        queryText: q,
+        queryVec: qVec,
+        k: 3,
+      );
 
       final prompt = _rag.buildPrompt(question: q, retrieved: hits);
 
