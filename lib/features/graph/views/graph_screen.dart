@@ -574,49 +574,83 @@ class _NodeChip extends StatelessWidget {
   final TextStyle titleStyle;
   final VoidCallback onTap;
 
+  /// Layered halo + depth so selection reads on light and dark graph backgrounds.
+  List<BoxShadow> _selectedShadows() {
+    final isDark = colorScheme.brightness == Brightness.dark;
+    final halo = colorScheme.onPrimary;
+    if (isDark) {
+      return [
+        BoxShadow(
+          color: halo.withOpacity(0.72),
+          blurRadius: 26,
+          spreadRadius: 1.5,
+        ),
+        BoxShadow(
+          color: Colors.white.withOpacity(0.55),
+          blurRadius: 14,
+          spreadRadius: 0,
+          offset: const Offset(0, 8),
+        ),
+      ];
+    }
+    return [
+      BoxShadow(
+        color: colorScheme.primary.withOpacity(0.42),
+        blurRadius: 28,
+        spreadRadius: 0,
+      ),
+      BoxShadow(
+        color: colorScheme.shadow.withOpacity(0.38),
+        blurRadius: 18,
+        spreadRadius: 0,
+        offset: const Offset(0, 8),
+      ),
+      BoxShadow(
+        color: colorScheme.shadow.withOpacity(0.18),
+        blurRadius: 6,
+        spreadRadius: 0,
+        offset: const Offset(0, 3),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final halfShortSide = math.min(size.width, size.height) / 2;
     final borderGlowColor = colorScheme.onPrimary;
-    // White halo reads well on dark filled chips; light backgrounds need a darker shadow.
-    final shadowGlowColor = colorScheme.brightness == Brightness.dark
-        ? borderGlowColor.withOpacity(0.55)
-        : colorScheme.shadow.withOpacity(0.38);
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedScale(
+        scale: glow ? 1.06 : 1.0,
         duration: const Duration(milliseconds: 280),
-        curve: Curves.easeOut,
-        width: size.width,
-        height: size.height,
-        padding: const EdgeInsets.symmetric(
-          horizontal: _kNodePadH,
-          vertical: _kNodePadV,
-        ),
-        decoration: BoxDecoration(
-          color: colorScheme.primary,
-          borderRadius: BorderRadius.circular(halfShortSide),
-          border: Border.all(
-            color: glow ? borderGlowColor : Colors.transparent,
-            width: glow ? 2 : 0,
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          curve: Curves.easeOut,
+          width: size.width,
+          height: size.height,
+          padding: const EdgeInsets.symmetric(
+            horizontal: _kNodePadH,
+            vertical: _kNodePadV,
           ),
-          boxShadow: glow
-              ? [
-                  BoxShadow(
-                    color: shadowGlowColor,
-                    blurRadius: 14,
-                    spreadRadius: 0.5,
-                  ),
-                ]
-              : const [],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: titleStyle,
-          textAlign: TextAlign.center,
-          softWrap: true,
-          overflow: TextOverflow.visible,
+          decoration: BoxDecoration(
+            color: colorScheme.primary,
+            borderRadius: BorderRadius.circular(halfShortSide),
+            border: Border.all(
+              color: glow ? borderGlowColor : Colors.transparent,
+              width: glow ? 3 : 0,
+            ),
+            boxShadow: glow ? _selectedShadows() : const [],
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: titleStyle,
+            textAlign: TextAlign.center,
+            softWrap: true,
+            overflow: TextOverflow.visible,
+          ),
         ),
       ),
     );

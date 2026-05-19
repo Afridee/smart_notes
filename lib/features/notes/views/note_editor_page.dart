@@ -85,8 +85,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final title = _titleCtrl.text.trim();
     final body = _bodyCtrl.text.trim();
-    final copyTitle =
-        _hasPersistedNote ? '$title (copy)' : title;
+    final copyTitle = _hasPersistedNote ? '$title (copy)' : title;
     try {
       final saved = await _notes.saveNote(
         id: null,
@@ -105,138 +104,143 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_editing == null ? 'New note' : 'Edit note'),
-        actions: [
-          Obx(() {
-            if (_notes.isSaving.value) {
-              return const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
+        resizeToAvoidBottomInset: false,
+        appBar: AppBar(
+          title: Text(_editing == null ? 'New note' : 'Edit note'),
+          actions: [
+            Obx(() {
+              if (_notes.isSaving.value) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
                   ),
-                ),
+                );
+              }
+              final persisted = _hasPersistedNote;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Save',
+                    icon: const Icon(Icons.save_outlined),
+                    onPressed: _save,
+                  ),
+                  PopupMenuButton<_EditorMenuAction>(
+                    icon: const Icon(Icons.more_vert),
+                    tooltip: 'Note actions',
+                    onSelected: (action) async {
+                      switch (action) {
+                        case _EditorMenuAction.openGraph:
+                          Get.toNamed(AppRoutes.graph, arguments: _editing!);
+                        case _EditorMenuAction.duplicate:
+                          await _duplicateNote();
+                        case _EditorMenuAction.delete:
+                          await _deleteCurrentNote();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      PopupMenuItem(
+                        value: _EditorMenuAction.openGraph,
+                        enabled: persisted,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.hub_outlined),
+                            SizedBox(width: 12),
+                            Text('Open in graph'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _EditorMenuAction.duplicate,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.copy_outlined),
+                            SizedBox(width: 12),
+                            Text('Make a copy'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: _EditorMenuAction.delete,
+                        enabled: persisted,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.delete_outline),
+                            SizedBox(width: 12),
+                            Text('Delete'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               );
-            }
-            final persisted = _hasPersistedNote;
-            return Row(
-              mainAxisSize: MainAxisSize.min,
+            }),
+          ],
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                IconButton(
-                  tooltip: 'Save',
-                  icon: const Icon(Icons.save_outlined),
-                  onPressed: _save,
-                ),
-                PopupMenuButton<_EditorMenuAction>(
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'Note actions',
-                  onSelected: (action) async {
-                    switch (action) {
-                      case _EditorMenuAction.openGraph:
-                        Get.toNamed(AppRoutes.graph, arguments: _editing!);
-                      case _EditorMenuAction.duplicate:
-                        await _duplicateNote();
-                      case _EditorMenuAction.delete:
-                        await _deleteCurrentNote();
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      value: _EditorMenuAction.openGraph,
-                      enabled: persisted,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.hub_outlined),
-                          SizedBox(width: 12),
-                          Text('Open in graph'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: _EditorMenuAction.duplicate,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.copy_outlined),
-                          SizedBox(width: 12),
-                          Text('Make a copy'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: _EditorMenuAction.delete,
-                      enabled: persisted,
-                      child: const Row(
-                        children: [
-                          Icon(Icons.delete_outline),
-                          SizedBox(width: 12),
-                          Text('Delete'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          }),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextFormField(
-                controller: _titleCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Title',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: TextFormField(
-                  controller: _bodyCtrl,
+                TextFormField(
+                  controller: _titleCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Note body',
+                    labelText: 'Title',
                     border: OutlineInputBorder(),
-                    alignLabelWithHint: true,
                   ),
-                  maxLines: null,
-                  expands: true,
-                  textAlignVertical: TextAlignVertical.top,
-                  keyboardType: TextInputType.multiline,
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-              ),
-              if (_editing != null && _editing!.id != 0) ...[
-                const Divider(height: 28),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Related Notes',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _bodyCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Note body',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: null,
+                    expands: true,
+                    textAlignVertical: TextAlignVertical.top,
+                    keyboardType: TextInputType.multiline,
+                    validator: (v) =>
+                        (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
                 ),
-                const SizedBox(height: 8),
-                _EditorRelatedNotes(noteId: _editing!.id),
+                if (_editing != null && _editing!.id != 0) ...[
+                  const Divider(height: 28),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Related Notes',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _EditorRelatedNotes(noteId: _editing!.id),
+                ],
+                const SizedBox(height: 12),
+                Obx(() => Text(
+                      _notes.saveStatus.value,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    )),
               ],
-              const SizedBox(height: 12),
-              Obx(() => Text(
-                    _notes.saveStatus.value,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  )),
-            ],
+            ),
           ),
         ),
       ),
@@ -276,10 +280,10 @@ class _EditorRelatedNotes extends StatelessWidget {
             subtitle: Text('${(row.$2 * 100).round()}% similar'),
             trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: () => Get.toNamed(
-                  AppRoutes.noteEditor,
-                  arguments: row.$1,
-                  preventDuplicates: false,
-                ),
+              AppRoutes.noteEditor,
+              arguments: row.$1,
+              preventDuplicates: false,
+            ),
           ),
       ],
     );

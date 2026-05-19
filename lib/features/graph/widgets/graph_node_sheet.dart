@@ -14,6 +14,25 @@ void _consumeWhyRebuildSignals(GraphController g) {
   g.whyGeneratingPairs.length;
 }
 
+/// Dim base + brighter highlight so the sweep reads in light and dark themes.
+({Color base, Color highlight}) _whyRowShimmerColors(ColorScheme scheme) {
+  final isDark = scheme.brightness == Brightness.dark;
+  if (isDark) {
+    final base = scheme.surfaceContainerHigh;
+    final highlight = Color.alphaBlend(
+      Colors.white.withOpacity(0.22),
+      scheme.surfaceContainerHighest,
+    );
+    return (base: base, highlight: highlight);
+  }
+  final base = scheme.surfaceContainerHigh;
+  final highlight = Color.alphaBlend(
+    Colors.black.withOpacity(0.68),
+    scheme.surfaceContainerLow,
+  );
+  return (base: base, highlight: highlight);
+}
+
 class GraphNodeSheet extends StatelessWidget {
   const GraphNodeSheet({super.key, required this.note});
 
@@ -228,6 +247,7 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
       final hasExplained =
           displayed != null && displayed.isNotEmpty;
       final generating = _g.whyGeneratingPairs.contains(pk);
+      final shimmer = _whyRowShimmerColors(scheme);
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,12 +309,12 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 8),
               child: Shimmer.fromColors(
-                baseColor: scheme.surfaceContainerHighest,
-                highlightColor: scheme.outline.withOpacity(0.25),
+                baseColor: shimmer.base,
+                highlightColor: shimmer.highlight,
                 child: Container(
                   height: 14,
                   decoration: BoxDecoration(
-                    color: scheme.onSurfaceVariant.withOpacity(0.3),
+                    color: shimmer.base,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
