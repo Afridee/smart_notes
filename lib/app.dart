@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 
 import 'bindings/initial_bindings.dart';
 import 'routes/app_pages.dart';
+import 'theme/app_theme.dart';
 
 class SmartNotesApp extends StatelessWidget {
   const SmartNotesApp({super.key});
@@ -12,15 +13,8 @@ class SmartNotesApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Smart Notes',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.indigo,
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: Colors.indigo,
-      ),
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       initialBinding: InitialBindings(),
       initialRoute: AppPages.initial,
       getPages: AppPages.pages,

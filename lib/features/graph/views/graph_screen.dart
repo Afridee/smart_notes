@@ -10,9 +10,6 @@ import '../../../services/note_graph_service.dart';
 import '../controllers/graph_controller.dart';
 import '../widgets/graph_node_sheet.dart';
 
-const Color _kGraphBg = Color(0xFF0D0D0D);
-const Color _kNodeFill = Color(0xFF6C63FF);
-
 /// Max line width inside a node (full title wraps within this).
 const double _kNodeTextMaxWidth = 260;
 
@@ -37,14 +34,17 @@ String _graphNodeDisplayTitle(String title) {
 }
 
 /// Text style must match [_NodeChip] labels for layout measurement.
-TextStyle _graphNodeTitleTextStyle() => GoogleFonts.dmSerifDisplay(
-      color: Colors.white,
+TextStyle _graphNodeTitleTextStyle(ColorScheme scheme) => GoogleFonts.dmSerifDisplay(
+      color: scheme.onPrimary,
       fontSize: 13,
       height: 1.2,
     );
 
-Map<int, Size> measureGraphNodeSizes(List<Note> notes) {
-  final style = _graphNodeTitleTextStyle();
+Map<int, Size> measureGraphNodeSizes(
+  List<Note> notes, {
+  required TextStyle titleStyle,
+}) {
+  final style = titleStyle;
   final out = <int, Size>{};
   for (final n in notes) {
     final text = _graphNodeDisplayTitle(n.title);
@@ -209,11 +209,13 @@ class _EdgesPainter extends CustomPainter {
     required this.edges,
     required this.positions,
     required this.threshold,
+    required this.edgeColor,
   });
 
   final List<NoteEdge> edges;
   final Map<int, Offset> positions;
   final double threshold;
+  final Color edgeColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -230,7 +232,7 @@ class _EdgesPainter extends CustomPainter {
         a,
         b,
         Paint()
-          ..color = Colors.white.withOpacity(opacity)
+          ..color = edgeColor.withOpacity(opacity)
           ..strokeWidth = stroke
           ..style = PaintingStyle.stroke,
       );
@@ -241,7 +243,8 @@ class _EdgesPainter extends CustomPainter {
   bool shouldRepaint(covariant _EdgesPainter oldDelegate) {
     return oldDelegate.edges != edges ||
         oldDelegate.positions != positions ||
-        oldDelegate.threshold != threshold;
+        oldDelegate.threshold != threshold ||
+        oldDelegate.edgeColor != edgeColor;
   }
 }
 
@@ -251,84 +254,78 @@ class GraphScreen extends GetView<GraphController> {
   @override
   Widget build(BuildContext context) {
     final graphService = Get.find<NoteGraphService>();
+    final scheme = Theme.of(context).colorScheme;
 
-    return Theme(
-      data: ThemeData.dark(useMaterial3: true).copyWith(
-        scaffoldBackgroundColor: _kGraphBg,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: _kGraphBg,
-          foregroundColor: Colors.white,
-          elevation: 0,
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Semantic graph',
+          style: GoogleFonts.syne(fontWeight: FontWeight.w600),
         ),
-      ),
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Semantic graph',
-            style: GoogleFonts.syne(fontWeight: FontWeight.w600),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh layout',
+            icon: const Icon(Icons.refresh),
+            onPressed: controller.rebuildGraph,
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Refresh layout',
-              icon: const Icon(Icons.refresh),
-              onPressed: controller.rebuildGraph,
+        ],
+      ),
+      body: Obx(() {
+        final _ = controller.graphVersion.value;
+        final notes = graphService.allNotesSorted();
+        if (notes.isEmpty) {
+          return Center(
+            child: Text(
+              'No notes to display yet.',
+              style: GoogleFonts.syne(color: scheme.onSurfaceVariant),
+            ),
+          );
+        }
+
+        final edges = graphService.edgesForGraphView(
+          graphService.allEdges(),
+          notes.length,
+        );
+
+        final titleStyle = _graphNodeTitleTextStyle(scheme);
+        final nodeSizes = measureGraphNodeSizes(notes, titleStyle: titleStyle);
+        final layout = computeSemanticGraphLayout(
+          notes: notes,
+          edges: edges,
+          nodeSizes: nodeSizes,
+        );
+
+        final subtitle = edges.isEmpty
+            ? 'No similarity edges yet. Save notes so embeddings run; similar pairs appear as lines.'
+            : 'Pinch to zoom · drag to pan · lines = similarity (thicker = stronger). Notes without lines are not linked yet.';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Text(
+                subtitle,
+                style: GoogleFonts.syne(
+                  color: scheme.onSurfaceVariant.withOpacity(0.9),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            Expanded(
+              child: _GraphViewport(
+                key: const ValueKey<String>('semantic_graph_viewport'),
+                controller: controller,
+                layout: layout,
+                edges: edges,
+                notes: notes,
+                edgeLineColor: scheme.onSurface,
+                nodeTitleStyle: titleStyle,
+              ),
             ),
           ],
-        ),
-        body: Obx(() {
-          final _ = controller.graphVersion.value;
-          final notes = graphService.allNotesSorted();
-          if (notes.isEmpty) {
-            return Center(
-              child: Text(
-                'No notes to display yet.',
-                style: GoogleFonts.syne(color: Colors.white54),
-              ),
-            );
-          }
-
-          final edges = graphService.edgesForGraphView(
-            graphService.allEdges(),
-            notes.length,
-          );
-
-          final nodeSizes = measureGraphNodeSizes(notes);
-          final layout = computeSemanticGraphLayout(
-            notes: notes,
-            edges: edges,
-            nodeSizes: nodeSizes,
-          );
-
-          final subtitle = edges.isEmpty
-              ? 'No similarity edges yet. Save notes so embeddings run; similar pairs appear as lines.'
-              : 'Pinch to zoom · drag to pan · lines = similarity (thicker = stronger). Notes without lines are not linked yet.';
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
-                child: Text(
-                  subtitle,
-                  style: GoogleFonts.syne(
-                    color: Colors.white.withOpacity(0.55),
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: _GraphViewport(
-                  key: const ValueKey<String>('semantic_graph_viewport'),
-                  controller: controller,
-                  layout: layout,
-                  edges: edges,
-                  notes: notes,
-                ),
-              ),
-            ],
-          );
-        }),
-      ),
+        );
+      }),
     );
   }
 }
@@ -341,12 +338,16 @@ class _GraphViewport extends StatefulWidget {
     required this.layout,
     required this.edges,
     required this.notes,
+    required this.edgeLineColor,
+    required this.nodeTitleStyle,
   });
 
   final GraphController controller;
   final SemanticGraphLayout layout;
   final List<NoteEdge> edges;
   final List<Note> notes;
+  final Color edgeLineColor;
+  final TextStyle nodeTitleStyle;
 
   @override
   State<_GraphViewport> createState() => _GraphViewportState();
@@ -391,6 +392,7 @@ class _GraphViewportState extends State<_GraphViewport> {
                     edges: widget.edges,
                     positions: widget.layout.positions,
                     threshold: kGraphSimilarityFloor,
+                    edgeColor: widget.edgeLineColor,
                   ),
                 ),
                 for (final note in widget.notes)
@@ -399,6 +401,7 @@ class _GraphViewportState extends State<_GraphViewport> {
                     note: note,
                     center: widget.layout.positions[note.id] ?? Offset.zero,
                     controller: widget.controller,
+                    nodeTitleStyle: widget.nodeTitleStyle,
                   ),
               ],
             ),
@@ -415,12 +418,14 @@ class _PositionedNoteNode extends StatelessWidget {
     required this.note,
     required this.center,
     required this.controller,
+    required this.nodeTitleStyle,
   });
 
   final SemanticGraphLayout layout;
   final Note note;
   final Offset center;
   final GraphController controller;
+  final TextStyle nodeTitleStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -443,6 +448,8 @@ class _PositionedNoteNode extends StatelessWidget {
             label: _graphNodeDisplayTitle(note.title),
             size: box,
             glow: glow,
+            colorScheme: Theme.of(context).colorScheme,
+            titleStyle: nodeTitleStyle,
             onTap: () {
               controller.selectNote(id);
               showModalBottomSheet<void>(
@@ -464,17 +471,22 @@ class _NodeChip extends StatelessWidget {
     required this.label,
     required this.size,
     required this.glow,
+    required this.colorScheme,
+    required this.titleStyle,
     required this.onTap,
   });
 
   final String label;
   final Size size;
   final bool glow;
+  final ColorScheme colorScheme;
+  final TextStyle titleStyle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final halfShortSide = math.min(size.width, size.height) / 2;
+    final glowColor = colorScheme.onPrimary;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -487,16 +499,16 @@ class _NodeChip extends StatelessWidget {
           vertical: _kNodePadV,
         ),
         decoration: BoxDecoration(
-          color: _kNodeFill,
+          color: colorScheme.primary,
           borderRadius: BorderRadius.circular(halfShortSide),
           border: Border.all(
-            color: glow ? Colors.white : Colors.transparent,
+            color: glow ? glowColor : Colors.transparent,
             width: glow ? 2 : 0,
           ),
           boxShadow: glow
               ? [
                   BoxShadow(
-                    color: Colors.white.withOpacity(0.55),
+                    color: glowColor.withOpacity(0.55),
                     blurRadius: 14,
                     spreadRadius: 0.5,
                   ),
@@ -506,7 +518,7 @@ class _NodeChip extends StatelessWidget {
         alignment: Alignment.center,
         child: Text(
           label,
-          style: _graphNodeTitleTextStyle(),
+          style: titleStyle,
           textAlign: TextAlign.center,
           softWrap: true,
           overflow: TextOverflow.visible,

@@ -22,6 +22,7 @@ class GraphNodeSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final graph = Get.find<GraphController>();
+    final scheme = Theme.of(context).colorScheme;
     final related = graph.relatedForNote(note.id);
     final preview = note.body.trim();
     final previewShort =
@@ -34,9 +35,9 @@ class GraphNodeSheet extends StatelessWidget {
       maxChildSize: 0.92,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Color(0xFF161616),
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHigh,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -45,7 +46,7 @@ class GraphNodeSheet extends StatelessWidget {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
+                  color: scheme.outline.withOpacity(0.35),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -61,7 +62,7 @@ class GraphNodeSheet extends StatelessWidget {
                           style: GoogleFonts.dmSerifDisplay(
                             fontSize: 26,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: scheme.onSurface,
                           ),
                         ),
                       ),
@@ -74,7 +75,7 @@ class GraphNodeSheet extends StatelessWidget {
                           style: GoogleFonts.syne(
                             fontSize: 14,
                             height: 1.35,
-                            color: Colors.white.withOpacity(0.75),
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -87,7 +88,7 @@ class GraphNodeSheet extends StatelessWidget {
                           style: GoogleFonts.syne(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white.withOpacity(0.9),
+                            color: scheme.onSurface,
                           ),
                         ),
                       ),
@@ -99,7 +100,7 @@ class GraphNodeSheet extends StatelessWidget {
                           child: Text(
                             'No edges above the similarity threshold yet.',
                             style: GoogleFonts.syne(
-                              color: Colors.white.withOpacity(0.45),
+                              color: scheme.onSurfaceVariant.withOpacity(0.85),
                               fontSize: 13,
                             ),
                           ),
@@ -131,8 +132,8 @@ class GraphNodeSheet extends StatelessWidget {
                       sliver: SliverToBoxAdapter(
                         child: FilledButton(
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF6C63FF),
-                            foregroundColor: Colors.white,
+                            backgroundColor: scheme.primary,
+                            foregroundColor: scheme.onPrimary,
                             minimumSize: const Size.fromHeight(48),
                           ),
                           onPressed: () {
@@ -216,6 +217,7 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
     final title = widget.related.title.trim().isEmpty
         ? '(Untitled)'
         : widget.related.title;
+    final scheme = Theme.of(context).colorScheme;
 
     return Obx(() {
       _consumeWhyRebuildSignals(_g);
@@ -254,7 +256,7 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
                           style: GoogleFonts.syne(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
-                            color: Colors.white,
+                            color: scheme.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -262,7 +264,7 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
                           '${widget.scorePercent}% similar',
                           style: GoogleFonts.syne(
                             fontSize: 12,
-                            color: Colors.white.withOpacity(0.5),
+                            color: scheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -276,7 +278,8 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
                   child: Text(
                     'Why?',
                     style: GoogleFonts.syne(
-                      color: const Color(0xFFB8B3FF),
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -286,12 +289,12 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
             Padding(
               padding: const EdgeInsets.only(top: 6, bottom: 8),
               child: Shimmer.fromColors(
-                baseColor: Colors.white.withOpacity(0.08),
-                highlightColor: Colors.white.withOpacity(0.22),
+                baseColor: scheme.surfaceContainerHighest,
+                highlightColor: scheme.outline.withOpacity(0.25),
                 child: Container(
                   height: 14,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: scheme.onSurfaceVariant.withOpacity(0.3),
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -305,7 +308,7 @@ class _RelatedWhyRowState extends State<_RelatedWhyRow> {
                 style: GoogleFonts.syne(
                   fontSize: 13,
                   height: 1.35,
-                  color: Colors.white.withOpacity(0.82),
+                  color: scheme.onSurface.withOpacity(0.82),
                 ),
               ),
             ),
