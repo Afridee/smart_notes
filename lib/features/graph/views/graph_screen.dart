@@ -117,14 +117,6 @@ SemanticGraphLayout computeSemanticGraphLayout({
   }
 
   final positions = <int, Offset>{};
-  var maxX = 400.0;
-  var maxY = 400.0;
-
-  void bump(Offset c, int noteId) {
-    final s = szOf(noteId);
-    maxX = math.max(maxX, c.dx + s.width / 2 + 48);
-    maxY = math.max(maxY, c.dy + s.height / 2 + 48);
-  }
 
   final seen = <int>{};
   var compIndex = 0;
@@ -154,21 +146,17 @@ SemanticGraphLayout computeSemanticGraphLayout({
     final maxSide = comp
         .map((id) => math.max(szOf(id).width, szOf(id).height))
         .reduce(math.max);
-    final rBase = n <= 2 ? 130.0 : 95.0 + 22.0 * (n - 2).clamp(0, 8);
-    final r = math.max(rBase, maxSide * 0.52 + 28);
+    final rBase = n <= 2 ? 150.0 : 110.0 + 26.0 * (n - 2).clamp(0, 10);
+    final r = math.max(rBase, maxSide * 0.62 + 36);
 
     if (n == 1) {
       final id = comp[0];
-      final c = Offset(cx, cy);
-      positions[id] = c;
-      bump(c, id);
+      positions[id] = Offset(cx, cy);
     } else {
       for (var i = 0; i < n; i++) {
         final id = comp[i];
         final angle = -math.pi / 2 + 2 * math.pi * i / n;
-        final c = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
-        positions[id] = c;
-        bump(c, id);
+        positions[id] = Offset(cx + r * math.cos(angle), cy + r * math.sin(angle));
       }
     }
     compIndex++;
@@ -192,16 +180,119 @@ SemanticGraphLayout computeSemanticGraphLayout({
     }
     final c = Offset(rowX + s.width / 2, rowY + s.height / 2);
     positions[id] = c;
-    bump(c, id);
     rowX += s.width + colGap;
     rowH = math.max(rowH, s.height);
   }
 
+  _separateOverlappingNodes(
+    positions,
+    nodeSizes,
+    ids,
+    gap: 12,
+  );
+
+  // Overlap resolution can move centers above/left of the initial placement.
+  // Nodes must lie inside the Stack's SizedBox for hit testing; Clip.none
+  // still paints overflow but taps outside the box do not reach children.
+  const layoutMargin = 48.0;
+  final bounds = _axisAlignedNodeBounds(positions, nodeSizes, ids);
+  final tx = layoutMargin - bounds.left;
+  final ty = layoutMargin - bounds.top;
+  if (tx != 0.0 || ty != 0.0) {
+    for (final id in ids) {
+      final c = positions[id];
+      if (c != null) positions[id] = Offset(c.dx + tx, c.dy + ty);
+    }
+  }
+
+  final canvasW = math.max(520.0, bounds.width + 2 * layoutMargin);
+  final canvasH = math.max(420.0, bounds.height + 2 * layoutMargin);
+
   return SemanticGraphLayout(
     positions: positions,
     nodeSizes: nodeSizes,
-    size: Size(math.max(520, maxX + 80), math.max(420, maxY + 80)),
+    size: Size(canvasW, canvasH),
   );
+}
+
+/// Tight axis-aligned bounds of all node chips (center ± half size).
+Rect _axisAlignedNodeBounds(
+  Map<int, Offset> positions,
+  Map<int, Size> nodeSizes,
+  Set<int> ids,
+) {
+  Size szOf(int id) =>
+      nodeSizes[id] ?? const Size(_kNodeLayFallbackW, _kNodeLayFallbackH);
+
+  var minL = double.infinity;
+  var minT = double.infinity;
+  var maxR = double.negativeInfinity;
+  var maxB = double.negativeInfinity;
+
+  for (final id in ids) {
+    final c = positions[id];
+    if (c == null) continue;
+    final s = szOf(id);
+    minL = math.min(minL, c.dx - s.width / 2);
+    minT = math.min(minT, c.dy - s.height / 2);
+    maxR = math.max(maxR, c.dx + s.width / 2);
+    maxB = math.max(maxB, c.dy + s.height / 2);
+  }
+
+  if (!minL.isFinite || !minT.isFinite) {
+    return const Rect.fromLTWH(0, 0, 520, 420);
+  }
+  return Rect.fromLTRB(minL, minT, maxR, maxB);
+}
+
+/// Pushes axis-aligned node boxes apart so they do not overlap (after initial placement).
+void _separateOverlappingNodes(
+  Map<int, Offset> positions,
+  Map<int, Size> nodeSizes,
+  Set<int> ids, {
+  double gap = 10,
+  int maxIterations = 120,
+}) {
+  Size szOf(int id) =>
+      nodeSizes[id] ?? const Size(_kNodeLayFallbackW, _kNodeLayFallbackH);
+
+  final list = ids.toList();
+  for (var iter = 0; iter < maxIterations; iter++) {
+    var anyOverlap = false;
+    for (var a = 0; a < list.length; a++) {
+      for (var b = a + 1; b < list.length; b++) {
+        final idA = list[a];
+        final idB = list[b];
+        final cA = positions[idA];
+        final cB = positions[idB];
+        if (cA == null || cB == null) continue;
+
+        final sA = szOf(idA);
+        final sB = szOf(idB);
+        final halfW = (sA.width + sB.width) / 2 + gap;
+        final halfH = (sA.height + sB.height) / 2 + gap;
+        final dx = cB.dx - cA.dx;
+        final dy = cB.dy - cA.dy;
+        final overlapX = halfW - dx.abs();
+        final overlapY = halfH - dy.abs();
+        if (overlapX <= 0 || overlapY <= 0) continue;
+
+        anyOverlap = true;
+        if (overlapX < overlapY) {
+          final push = overlapX / 2 + 0.5;
+          final sx = dx >= 0 ? 1.0 : -1.0;
+          positions[idA] = Offset(cA.dx - sx * push, cA.dy);
+          positions[idB] = Offset(cB.dx + sx * push, cB.dy);
+        } else {
+          final push = overlapY / 2 + 0.5;
+          final sy = dy >= 0 ? 1.0 : -1.0;
+          positions[idA] = Offset(cA.dx, cA.dy - sy * push);
+          positions[idB] = Offset(cB.dx, cB.dy + sy * push);
+        }
+      }
+    }
+    if (!anyOverlap) break;
+  }
 }
 
 class _EdgesPainter extends CustomPainter {
@@ -486,7 +577,11 @@ class _NodeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final halfShortSide = math.min(size.width, size.height) / 2;
-    final glowColor = colorScheme.onPrimary;
+    final borderGlowColor = colorScheme.onPrimary;
+    // White halo reads well on dark filled chips; light backgrounds need a darker shadow.
+    final shadowGlowColor = colorScheme.brightness == Brightness.dark
+        ? borderGlowColor.withOpacity(0.55)
+        : colorScheme.shadow.withOpacity(0.38);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -502,13 +597,13 @@ class _NodeChip extends StatelessWidget {
           color: colorScheme.primary,
           borderRadius: BorderRadius.circular(halfShortSide),
           border: Border.all(
-            color: glow ? glowColor : Colors.transparent,
+            color: glow ? borderGlowColor : Colors.transparent,
             width: glow ? 2 : 0,
           ),
           boxShadow: glow
               ? [
                   BoxShadow(
-                    color: glowColor.withOpacity(0.55),
+                    color: shadowGlowColor,
                     blurRadius: 14,
                     spreadRadius: 0.5,
                   ),
