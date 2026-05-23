@@ -1,6 +1,7 @@
 import 'package:get/get.dart';
 
 import '../data/objectbox/objectbox.dart';
+import '../services/attachment_service.dart';
 import '../services/chunker_service.dart';
 import '../services/embedding_service.dart';
 import '../services/gemma_service.dart';
@@ -23,6 +24,8 @@ class InitialBindings extends Bindings {
     Get.put<EmbeddingService>(EmbeddingService(), permanent: true);
     Get.put<ChunkerService>(ChunkerService(), permanent: true);
     Get.put<RagService>(RagService(), permanent: true);
+
+    Get.lazyPut<AttachmentService>(() => AttachmentService(), fenix: true);
 
     Get.lazyPut<VectorStoreService>(
       () => VectorStoreService(Get.find<ObjectBox>()),

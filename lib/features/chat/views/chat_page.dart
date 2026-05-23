@@ -7,6 +7,7 @@ import '../../../data/objectbox/objectbox.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/vector_store_service.dart';
 import '../controllers/chat_controller.dart';
+import '../smart_notes_attachment_opener.dart';
 
 class ChatPage extends GetView<ChatController> {
   const ChatPage({super.key});
@@ -169,6 +170,14 @@ class _Bubble extends StatelessWidget {
                 child: GptMarkdown(
                   text,
                   style: Theme.of(context).textTheme.bodyMedium,
+                  followLinkColor: true,
+                  onLinkTap: (url, title) async {
+                    await openSmartNotesAttachmentFromChat(
+                      context,
+                      url,
+                      message.citations,
+                    );
+                  },
                 ),
               );
             }),

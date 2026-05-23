@@ -24,7 +24,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(1, 3846300818630381873),
     name: 'Note',
-    lastPropertyId: const obx_int.IdUid(6, 6738492019384756102),
+    lastPropertyId: const obx_int.IdUid(7, 8927346510928374653),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -63,6 +63,12 @@ final _entities = <obx_int.ModelEntity>[
         type: 28,
         flags: 0,
       ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(7, 8927346510928374653),
+        name: 'attachmentsJson',
+        type: 9,
+        flags: 0,
+      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
@@ -70,7 +76,7 @@ final _entities = <obx_int.ModelEntity>[
   obx_int.ModelEntity(
     id: const obx_int.IdUid(2, 6380278326908799177),
     name: 'NoteChunk',
-    lastPropertyId: const obx_int.IdUid(7, 4498683549219253186),
+    lastPropertyId: const obx_int.IdUid(8, 6123456789012345670),
     flags: 0,
     properties: <obx_int.ModelProperty>[
       obx_int.ModelProperty(
@@ -117,6 +123,12 @@ final _entities = <obx_int.ModelEntity>[
       obx_int.ModelProperty(
         id: const obx_int.IdUid(7, 4498683549219253186),
         name: 'contextHeader',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(8, 6123456789012345670),
+        name: 'chunkMetadataJson',
         type: 9,
         flags: 0,
       ),
@@ -193,9 +205,14 @@ Future<obx.Store> openStore({
   );
 }
 
-/// Returns the ObjectBox model definition for use with [obx.Store.new].
+/// Returns the ObjectBox model definition for this project for use with
+/// [obx.Store.new].
 obx_int.ModelDefinition getObjectBoxModel() {
   final model = obx_int.ModelInfo(
+    // If this version is not found, it means that this file was generated
+    // with an older version of the ObjectBox Dart generator.
+    // Please regenerate this file with the current generator version.
+    // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
     lastEntityId: const obx_int.IdUid(3, 7283746510293847561),
@@ -224,13 +241,15 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final titleOffset = fbb.writeString(object.title);
         final bodyOffset = fbb.writeString(object.body);
         final noteEmbeddingOffset = fbb.writeListFloat32(object.noteEmbedding);
-        fbb.startTable(7);
+        final attachmentsJsonOffset = fbb.writeString(object.attachmentsJson);
+        fbb.startTable(8);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, titleOffset);
         fbb.addOffset(2, bodyOffset);
         fbb.addInt64(3, object.createdAt.millisecondsSinceEpoch);
         fbb.addInt64(4, object.updatedAt.millisecondsSinceEpoch);
         fbb.addOffset(5, noteEmbeddingOffset);
+        fbb.addOffset(6, attachmentsJsonOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -259,6 +278,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
           fb.Float32Reader(),
           lazy: false,
         ).vTableGet(buffer, rootOffset, 14, []);
+        final attachmentsJsonParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 16, '');
         final object = Note(
           id: idParam,
           title: titleParam,
@@ -266,6 +288,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           createdAt: createdAtParam,
           updatedAt: updatedAtParam,
           noteEmbedding: noteEmbeddingParam,
+          attachmentsJson: attachmentsJsonParam,
         );
 
         return object;
@@ -283,7 +306,10 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final textOffset = fbb.writeString(object.text);
         final embeddingOffset = fbb.writeListFloat32(object.embedding);
         final contextHeaderOffset = fbb.writeString(object.contextHeader);
-        fbb.startTable(8);
+        final chunkMetadataJsonOffset = fbb.writeString(
+          object.chunkMetadataJson,
+        );
+        fbb.startTable(9);
         fbb.addInt64(0, object.id);
         fbb.addInt64(1, object.note.targetId);
         fbb.addInt64(2, object.chunkIndex);
@@ -291,6 +317,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(4, embeddingOffset);
         fbb.addInt64(5, object.createdAt.millisecondsSinceEpoch);
         fbb.addOffset(6, contextHeaderOffset);
+        fbb.addOffset(7, chunkMetadataJsonOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -315,6 +342,9 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final contextHeaderParam = const fb.StringReader(
           asciiOptimization: true,
         ).vTableGet(buffer, rootOffset, 16, '');
+        final chunkMetadataJsonParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 18, '');
         final embeddingParam = const fb.ListReader<double>(
           fb.Float32Reader(),
           lazy: false,
@@ -327,6 +357,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
           chunkIndex: chunkIndexParam,
           text: textParam,
           contextHeader: contextHeaderParam,
+          chunkMetadataJson: chunkMetadataJsonParam,
           embedding: embeddingParam,
           createdAt: createdAtParam,
         );
@@ -384,12 +415,14 @@ obx_int.ModelDefinition getObjectBoxModel() {
           10,
           0,
         );
-        return NoteEdge(
+        final object = NoteEdge(
           id: idParam,
           noteIdA: noteIdAParam,
           noteIdB: noteIdBParam,
           similarityScore: similarityScoreParam,
         );
+
+        return object;
       },
     ),
   };
@@ -423,6 +456,11 @@ class Note_ {
   /// See [Note.noteEmbedding].
   static final noteEmbedding = obx.QueryDoubleVectorProperty<Note>(
     _entities[0].properties[5],
+  );
+
+  /// See [Note.attachmentsJson].
+  static final attachmentsJson = obx.QueryStringProperty<Note>(
+    _entities[0].properties[6],
   );
 }
 
@@ -461,6 +499,11 @@ class NoteChunk_ {
   /// See [NoteChunk.contextHeader].
   static final contextHeader = obx.QueryStringProperty<NoteChunk>(
     _entities[1].properties[6],
+  );
+
+  /// See [NoteChunk.chunkMetadataJson].
+  static final chunkMetadataJson = obx.QueryStringProperty<NoteChunk>(
+    _entities[1].properties[7],
   );
 }
 

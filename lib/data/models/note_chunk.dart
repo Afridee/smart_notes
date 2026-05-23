@@ -18,6 +18,9 @@ class NoteChunk {
   /// Empty for chunks created before this field was introduced.
   String contextHeader;
 
+  /// JSON object, typically `{"attachments":[...]} — mirrors note file refs when indexed.
+  String chunkMetadataJson;
+
   // EmbeddingGemma & Gecko output 768D L2-normalized vectors,
   // so we can use cosine distance directly via dot product.
   @HnswIndex(
@@ -35,6 +38,7 @@ class NoteChunk {
     this.chunkIndex = 0,
     this.text = '',
     this.contextHeader = '',
+    this.chunkMetadataJson = '{}',
     List<double>? embedding,
     DateTime? createdAt,
   })  : embedding = embedding ?? const <double>[],

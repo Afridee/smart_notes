@@ -4,6 +4,7 @@ import 'dart:developer' show log;
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:get/get.dart';
 
+import '../chat_citation_polish.dart';
 import '../../../services/embedding_service.dart';
 import '../../../services/gemma_service.dart';
 import '../../../services/rag_service.dart';
@@ -15,12 +16,14 @@ class ChatMessage {
   ChatMessage({
     required this.role,
     required this.text,
-    this.citations = const [],
-  });
+    List<SimilarChunk>? citations,
+  }) : citations = citations == null
+            ? <SimilarChunk>[]
+            : List<SimilarChunk>.from(citations);
 
   final ChatRole role;
   final RxString text;
-  final List<SimilarChunk> citations;
+  List<SimilarChunk> citations;
 
   factory ChatMessage.user(String text) =>
       ChatMessage(role: ChatRole.user, text: text.obs);
@@ -113,6 +116,8 @@ class ChatController extends GetxController {
         queryVec: qVec,
         k: 3,
       );
+      assistant.citations = List<SimilarChunk>.from(hits);
+      messages.refresh();
 
       final prompt = _rag.buildPrompt(question: q, retrieved: hits);
 
@@ -127,7 +132,8 @@ class ChatController extends GetxController {
           }
         },
         onError: (e, st) {
-          log('chat stream error', name: 'ChatController', error: e, stackTrace: st);
+          log('chat stream error',
+              name: 'ChatController', error: e, stackTrace: st);
           assistant.text.value += '\n\n[error: $e]';
           if (!completer.isCompleted) completer.completeError(e);
         },
@@ -138,14 +144,16 @@ class ChatController extends GetxController {
       );
       await completer.future;
 
+      final polished = polishAssistantCitations(assistant.text.value);
       final updated = ChatMessage.assistant(
-        assistant.text.value,
+        polished,
         citations: hits,
       );
       messages[messages.length - 1] = updated;
       stage.value = '';
     } catch (e, st) {
-      log('ChatController.ask failed', name: 'ChatController', error: e, stackTrace: st);
+      log('ChatController.ask failed',
+          name: 'ChatController', error: e, stackTrace: st);
       assistant.text.value += '\n\n[error: $e]';
       stage.value = 'Error';
     } finally {

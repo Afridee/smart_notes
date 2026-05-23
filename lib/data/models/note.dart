@@ -20,6 +20,9 @@ class Note {
   @Property(type: PropertyType.floatVector)
   List<double> noteEmbedding;
 
+  /// JSON array of [NoteAttachmentRef] maps (paths relative to app documents dir).
+  String attachmentsJson;
+
   Note({
     this.id = 0,
     this.title = '',
@@ -27,6 +30,7 @@ class Note {
     DateTime? createdAt,
     DateTime? updatedAt,
     List<double>? noteEmbedding,
+    this.attachmentsJson = '[]',
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now(),
         noteEmbedding = noteEmbedding ?? const <double>[];

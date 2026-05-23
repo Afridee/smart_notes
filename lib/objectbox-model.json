@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:3846300818630381873",
-      "lastPropertyId": "6:6738492019384756102",
+      "lastPropertyId": "7:8927346510928374653",
       "name": "Note",
       "properties": [
         {
@@ -37,15 +37,19 @@
         {
           "id": "6:6738492019384756102",
           "name": "noteEmbedding",
-          "type": 28,
-          "flags": 0
+          "type": 28
+        },
+        {
+          "id": "7:8927346510928374653",
+          "name": "attachmentsJson",
+          "type": 9
         }
       ],
       "relations": []
     },
     {
       "id": "2:6380278326908799177",
-      "lastPropertyId": "7:4498683549219253186",
+      "lastPropertyId": "8:6123456789012345670",
       "name": "NoteChunk",
       "properties": [
         {
@@ -87,6 +91,11 @@
         {
           "id": "7:4498683549219253186",
           "name": "contextHeader",
+          "type": 9
+        },
+        {
+          "id": "8:6123456789012345670",
+          "name": "chunkMetadataJson",
           "type": 9
         }
       ],

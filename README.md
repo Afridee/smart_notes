@@ -8,6 +8,7 @@ Flutter app for **local notes** with **on-device RAG** (retrieval-augmented gene
 - **Private RAG chat** — Ask questions over your notes; answers use retrieved chunks only, with **chunk citations** and **Markdown**-friendly replies (`gpt_markdown`).
 - **Semantic note graph** — Visual graph of notes linked by **embedding similarity** (ObjectBox + heuristics for large libraries); explore how notes relate without manual tagging.
 - **Note workspace** — Create and edit notes, **search** the library, and browse in a **staggered grid** layout.
+- **Attachments** — Attach **PDFs** and **photos** (library or camera); files are copied into **`Documents/smart_notes_attachments/`**, with refs saved on each note and in chunk **metadata** for search/RAG context.
 - **Material 3** — Light/dark themes with a consistent indigo seed palette (`GetX` for routing and state).
 
 ## Requirements
@@ -79,9 +80,9 @@ On-device RAG uses `flutter_gemma` for embeddings and inference (**EmbeddingGemm
 
 ### Save note flow
 
-1. **Write a note** — user creates content.
+1. **Write a note** — user creates content (and optional attachments: paths under app **Documents**, `smart_notes_attachments/`).
 2. **Chunk note text** — split into segments (about 480 tokens).
-3. **Prepend context** — title and timestamps are attached to each chunk.
+3. **Prepend context** — title and timestamps are attached to each chunk; attachment names are hinted in embeddings; full file refs land in **`chunkMetadataJson`**.
 4. **Embed chunks** — `EmbeddingGemma` (`flutter_gemma`) produces vectors.
 5. **Store in ObjectBox** — text, vectors, and metadata are indexed (HNSW) for search.
 

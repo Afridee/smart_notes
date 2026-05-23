@@ -5,7 +5,9 @@ import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:get/get.dart';
 
 import '../../../data/models/note.dart';
+import '../../../data/models/note_attachment.dart';
 import '../../../data/objectbox/objectbox.dart';
+import '../../../services/attachment_service.dart';
 import '../../../services/chunker_service.dart';
 import '../../../services/embedding_service.dart';
 import '../../../services/note_graph_service.dart';
@@ -18,17 +20,21 @@ class NotesController extends GetxController {
     ChunkerService? chunker,
     VectorStoreService? vectorStore,
     NoteGraphService? graph,
+    AttachmentService? attachments,
   })  : _box = box ?? Get.find<ObjectBox>(),
         _embedder = embedder ?? Get.find<EmbeddingService>(),
         _chunker = chunker ?? Get.find<ChunkerService>(),
         _vectorStore = vectorStore ?? Get.find<VectorStoreService>(),
-        _graph = graph ?? Get.find<NoteGraphService>();
+        _graph = graph ?? Get.find<NoteGraphService>(),
+        _attachments =
+            attachments ?? Get.find<AttachmentService>();
 
   final ObjectBox _box;
   final EmbeddingService _embedder;
   final ChunkerService _chunker;
   final VectorStoreService _vectorStore;
   final NoteGraphService _graph;
+  final AttachmentService _attachments;
 
   final notes = <Note>[].obs;
   final isSaving = false.obs;
@@ -79,24 +85,69 @@ class NotesController extends GetxController {
     int? id,
     required String title,
     required String body,
+    required List<NoteAttachmentRef> attachments,
+    required String draftAttachmentSessionId,
   }) async {
     isSaving.value = true;
     lastError.value = null;
     saveStatus.value = 'Saving note…';
     try {
-      final note = id == null || id == 0
+      final nid = id;
+      final existed = nid != null && nid != 0;
+
+      Note? prev;
+      if (nid != null && nid != 0) {
+        prev = _box.noteBox.get(nid);
+      }
+      final prevRefs =
+          prev == null ? <NoteAttachmentRef>[] : decodeAttachmentsJson(prev.attachmentsJson);
+
+      final note = nid == null || nid == 0
           ? Note(title: title, body: body)
-          : (_box.noteBox.get(id) ??
-              Note(id: id, title: title, body: body));
+          : (prev ?? Note(id: nid, title: title, body: body));
       note.title = title;
       note.body = body;
       note.updatedAt = DateTime.now();
+
       final savedId = _box.noteBox.put(note);
       note.id = savedId;
 
+      var finalizedAttachments = attachments;
+      if (draftAttachmentSessionId.trim().isNotEmpty) {
+        finalizedAttachments =
+            await _attachments.promoteStagingToNote(
+          savedNoteId: savedId,
+          draftId: draftAttachmentSessionId,
+          refs: attachments,
+        );
+      }
+
+      final removedRefs = existed
+          ? prevRefs.where(
+              (o) =>
+                  !finalizedAttachments.any(
+                    (n) =>
+                        AttachmentService.posixRelative(n.relativePath) ==
+                        AttachmentService.posixRelative(o.relativePath),
+                  ),
+            ).toList()
+          : null;
+      if (removedRefs != null && removedRefs.isNotEmpty) {
+        await _attachments.deleteFiles(removedRefs);
+      }
+
+      note.attachmentsJson = encodeAttachmentsJson(finalizedAttachments);
+      _box.noteBox.put(note);
+
       saveStatus.value = 'Chunking…';
       final bodyChunks = _chunker.split(body);
-      final header = _composeHeader(note);
+      final rawHeader = _composeHeader(note);
+      final attachHint = attachmentNamesForEmbedHint(finalizedAttachments);
+      final header = attachHint.isEmpty
+          ? rawHeader
+          : (rawHeader.isEmpty ? attachHint : '$rawHeader\n$attachHint');
+
+      final chunkMeta = buildChunkMetadataJson(finalizedAttachments);
 
       // Title-only notes: still index one chunk so the title is searchable.
       final chunks = bodyChunks.isEmpty && header.isNotEmpty
@@ -104,7 +155,7 @@ class NotesController extends GetxController {
           : bodyChunks;
 
       if (chunks.isNotEmpty) {
-        if (id != null && id != 0) {
+        if (existed) {
           await _vectorStore.deleteChunksForNote(savedId);
         }
 
@@ -128,6 +179,7 @@ class NotesController extends GetxController {
               text: chunks[i],
               header: header,
               vector: vectors[i],
+              chunkMetadataJson: chunkMeta,
             ),
         ];
         await _vectorStore.addChunks(note, indexed);
@@ -150,6 +202,7 @@ class NotesController extends GetxController {
   Future<void> deleteNote(Note note) async {
     await _graph.deleteEdgesForNote(note.id);
     await _vectorStore.deleteChunksForNote(note.id);
+    await _attachments.deleteAllFilesForNote(note.id);
     _box.noteBox.remove(note.id);
     refreshNotes();
   }

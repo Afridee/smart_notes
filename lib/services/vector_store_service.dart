@@ -20,10 +20,12 @@ class IndexedChunk {
     required this.text,
     required this.vector,
     this.header = '',
+    this.chunkMetadataJson = '{}',
   });
   final String text;
   final String header;
   final List<double> vector;
+  final String chunkMetadataJson;
 }
 
 /// Result item for vector search.
@@ -56,6 +58,7 @@ class VectorStoreService extends GetxService {
         chunkIndex: i,
         text: c.text,
         contextHeader: c.header,
+        chunkMetadataJson: c.chunkMetadataJson,
         embedding: c.vector,
       )..note.target = note;
       entities.add(entity);
@@ -168,6 +171,15 @@ class VectorStoreService extends GetxService {
     );
   }
 
+  String _bm25ChunkDocument(NoteChunk c) {
+    final metaRaw = c.chunkMetadataJson.trim();
+    final meta = (metaRaw.isEmpty || metaRaw == '{}') ? '' : '$metaRaw\n';
+    final body = c.contextHeader.isEmpty
+        ? c.text
+        : '${c.contextHeader}\n${c.text}';
+    return '$meta$body';
+  }
+
   /// Lazy + cached BM25 build over the chunk corpus, keyed on
   /// [_corpusVersion]. Cheap as long as chunks aren't being written between
   /// queries.
@@ -177,10 +189,7 @@ class VectorStoreService extends GetxService {
     }
     final all = _box.chunkBox.getAll();
     final docs = <int, String>{
-      for (final c in all)
-        c.id: c.contextHeader.isEmpty
-            ? c.text
-            : '${c.contextHeader}\n${c.text}',
+      for (final c in all) c.id: _bm25ChunkDocument(c),
     };
     final built = Bm25Index.build(docs);
     _bm25Cache = built;
