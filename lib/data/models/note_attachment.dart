@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+/// Maximum PDF/image attachments allowed on a single [Note].
+const int kMaxAttachmentsPerNote = 5;
+
 /// Stored on [Note] as JSON (`attachmentsJson`) and duplicated into each chunk
 /// `chunkMetadataJson` under key `attachments` for retrieval context.
 class NoteAttachmentRef {

@@ -95,6 +95,12 @@ class NotesController extends GetxController {
       final nid = id;
       final existed = nid != null && nid != 0;
 
+      if (attachments.length > kMaxAttachmentsPerNote) {
+        throw StateError(
+          'A note can have at most $kMaxAttachmentsPerNote attachments.',
+        );
+      }
+
       Note? prev;
       if (nid != null && nid != 0) {
         prev = _box.noteBox.get(nid);

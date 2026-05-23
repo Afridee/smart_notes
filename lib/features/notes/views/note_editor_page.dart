@@ -65,7 +65,24 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     super.dispose();
   }
 
+  int get _attachmentSlotsRemaining =>
+      kMaxAttachmentsPerNote - _attachments.length;
+
+  void _snackAtAttachmentLimit() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Maximum $kMaxAttachmentsPerNote attachments.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickPdf() async {
+    if (_attachmentSlotsRemaining <= 0) {
+      _snackAtAttachmentLimit();
+      return;
+    }
     final pick = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf'],
@@ -84,6 +101,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   Future<void> _pickPhotos() async {
+    if (_attachmentSlotsRemaining <= 0) {
+      _snackAtAttachmentLimit();
+      return;
+    }
     final pick = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: true,
@@ -91,9 +112,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
     final files = pick?.files ?? const <PlatformFile>[];
     if (files.isEmpty) return;
+
+    final maxAdd = _attachmentSlotsRemaining;
+    final skippedBatch = files.length > maxAdd;
+    final iterable = skippedBatch ? files.take(maxAdd) : files;
+
     final svc = Get.find<AttachmentService>();
     try {
-      for (final f in files) {
+      for (final f in iterable) {
+        if (_attachments.length >= kMaxAttachmentsPerNote) break;
         final path = f.path;
         if (path == null) continue;
         final mime = AttachmentService.mimeFromBasename(path);
@@ -107,7 +134,18 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         );
         _attachments.add(ref);
       }
-      if (mounted) setState(() {});
+      if (!mounted) return;
+      setState(() {});
+      if (skippedBatch) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Only $maxAdd image${maxAdd == 1 ? '' : 's'} added '
+              '(maximum $kMaxAttachmentsPerNote attachments per note).',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -117,6 +155,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   }
 
   Future<void> _capturePhoto() async {
+    if (_attachmentSlotsRemaining <= 0) {
+      _snackAtAttachmentLimit();
+      return;
+    }
     final picker = ImagePicker();
     final xFile = await picker.pickImage(source: ImageSource.camera);
     if (xFile == null) return;
@@ -136,6 +178,10 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     required String displayName,
     required String mimeType,
   }) async {
+    if (_attachmentSlotsRemaining <= 0) {
+      _snackAtAttachmentLimit();
+      return;
+    }
     try {
       final svc = Get.find<AttachmentService>();
       final ref = await svc.importFile(
@@ -291,6 +337,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final attachmentsAtLimit =
+        _attachments.length >= kMaxAttachmentsPerNote;
     return GestureDetector(
       onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
       behavior: HitTestBehavior.translucent,
@@ -300,9 +348,23 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           title: Text(_editing == null ? 'New note' : 'Edit note'),
           actions: [
             IconButton(
-              tooltip: 'Add file',
+              tooltip: attachmentsAtLimit ? '' : 'Add file',
+              style: IconButton.styleFrom(
+                foregroundColor: attachmentsAtLimit
+                    ? Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.38)
+                    : null,
+              ),
               icon: const Icon(Icons.attach_file),
-              onPressed: _showAttachmentMenu,
+              onPressed: () {
+                if (_attachments.length >= kMaxAttachmentsPerNote) {
+                  _snackAtAttachmentLimit();
+                } else {
+                  _showAttachmentMenu();
+                }
+              },
             ),
             Obx(() {
               if (_notes.isSaving.value) {
@@ -462,7 +524,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                                   const SizedBox(height: 8),
                                   if (_attachments.isEmpty)
                                     Text(
-                                      'PDFs or images saved in Documents. Tap the clip icon to add.',
+                                      'PDFs or images (max $kMaxAttachmentsPerNote). '
+                                      'Tap the clip icon to add.',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodySmall
