@@ -8,6 +8,7 @@ import 'package:path/path.dart' as p;
 
 import '../../../data/models/note.dart';
 import '../../../data/models/note_attachment.dart';
+import '../../../features/chat/smart_notes_attachment_opener.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/attachment_service.dart';
 import '../../../services/note_graph_service.dart';
@@ -27,6 +28,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _titleCtrl;
   late final TextEditingController _bodyCtrl;
+  late final ScrollController _bodyScrollCtrl;
+  late final ScrollController _attachmentsScrollCtrl;
   late final NotesController _notes;
 
   Note? _editing;
@@ -39,6 +42,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _notes = Get.find<NotesController>();
     _draftAttachmentSessionId =
         '${DateTime.now().microsecondsSinceEpoch}_${Random.secure().nextInt(1 << 30)}';
+    _bodyScrollCtrl = ScrollController();
+    _attachmentsScrollCtrl = ScrollController();
     final arg = Get.arguments;
     if (arg is Note) {
       _editing = arg;
@@ -55,6 +60,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   void dispose() {
     _titleCtrl.dispose();
     _bodyCtrl.dispose();
+    _bodyScrollCtrl.dispose();
+    _attachmentsScrollCtrl.dispose();
     super.dispose();
   }
 
@@ -118,8 +125,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     await _importPath(
       absolutePath: xFile.path,
       displayName: xFile.name,
-      mimeType:
-          xFile.mimeType != null && xFile.mimeType!.isNotEmpty ? xFile.mimeType! : mime,
+      mimeType: xFile.mimeType != null && xFile.mimeType!.isNotEmpty
+          ? xFile.mimeType!
+          : mime,
     );
   }
 
@@ -197,8 +205,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
     final title = _titleCtrl.text.trim();
     final body = _bodyCtrl.text.trim();
-    final copyTitle =
-        '${title.isEmpty ? 'Untitled note' : title} (copy)';
+    final copyTitle = '${title.isEmpty ? 'Untitled note' : title} (copy)';
 
     Note result;
     try {
@@ -211,8 +218,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
           draftAttachmentSessionId: '',
         );
 
-        final duped = await Get.find<AttachmentService>()
-            .duplicateAttachmentsForNote(
+        final duped =
+            await Get.find<AttachmentService>().duplicateAttachmentsForNote(
           refs: List<NoteAttachmentRef>.from(_attachments),
           destinationNoteId: first.id,
         );
@@ -390,80 +397,145 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                 ),
                 const SizedBox(height: 12),
                 Expanded(
-                  child: TextFormField(
-                    controller: _bodyCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Note body',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
+                  child: Theme(
+                    data: Theme.of(context).copyWith(
+                      scrollbarTheme: ScrollbarThemeData(
+                        thumbVisibility:
+                            const WidgetStatePropertyAll<bool>(true),
+                        thumbColor: WidgetStatePropertyAll<Color?>(
+                          Theme.of(context)
+                              .colorScheme
+                              .onSurface
+                              .withValues(alpha: 0.15),
+                        ),
+                      ),
                     ),
-                    maxLines: null,
-                    expands: true,
-                    textAlignVertical: TextAlignVertical.top,
-                    keyboardType: TextInputType.multiline,
-                    validator: (v) =>
-                        (v == null || v.trim().isEmpty) ? 'Required' : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: Scrollbar(
+                            controller: _bodyScrollCtrl,
+                            child: TextFormField(
+                              controller: _bodyCtrl,
+                              scrollController: _bodyScrollCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'Note body',
+                                border: OutlineInputBorder(),
+                                alignLabelWithHint: true,
+                              ),
+                              maxLines: null,
+                              expands: true,
+                              textAlignVertical: TextAlignVertical.top,
+                              keyboardType: TextInputType.multiline,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Required'
+                                  : null,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          flex: 2,
+                          child: Scrollbar(
+                            controller: _attachmentsScrollCtrl,
+                            child: SingleChildScrollView(
+                              controller: _attachmentsScrollCtrl,
+                              keyboardDismissBehavior:
+                                  ScrollViewKeyboardDismissBehavior.onDrag,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Attachments',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (_attachments.isEmpty)
+                                    Text(
+                                      'PDFs or images saved in Documents. Tap the clip icon to add.',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .outline,
+                                          ),
+                                    )
+                                  else
+                                    Wrap(
+                                      spacing: 6,
+                                      runSpacing: 6,
+                                      children: [
+                                        for (var i = 0;
+                                            i < _attachments.length;
+                                            i++)
+                                          InputChip(
+                                            label: Text(
+                                              _attachments[i].displayName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            avatar: Icon(
+                                              _attachments[i]
+                                                      .mimeType
+                                                      .contains('pdf')
+                                                  ? Icons.picture_as_pdf
+                                                  : Icons.image_outlined,
+                                              size: 18,
+                                            ),
+                                            onPressed: () =>
+                                                openNoteAttachmentPreview(
+                                                    context, _attachments[i]),
+                                            onDeleted: () =>
+                                                _removeAttachment(i),
+                                          ),
+                                      ],
+                                    ),
+                                  if (_editing != null &&
+                                      _editing!.id != 0) ...[
+                                    const Divider(height: 28),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'Related Notes',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _EditorRelatedNotes(noteId: _editing!.id),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  Obx(() => Text(
+                                        _notes.saveStatus.value,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall,
+                                      )),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Attachments',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (_attachments.isEmpty)
-                  Text(
-                    'PDFs or images saved in Documents. Tap the clip icon to add.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                  )
-                else
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      for (var i = 0; i < _attachments.length; i++)
-                        InputChip(
-                          label: Text(
-                            _attachments[i].displayName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          avatar: Icon(
-                            _attachments[i].mimeType.contains('pdf')
-                                ? Icons.picture_as_pdf
-                                : Icons.image_outlined,
-                            size: 18,
-                          ),
-                          onDeleted: () => _removeAttachment(i),
-                        ),
-                    ],
-                  ),
-                if (_editing != null && _editing!.id != 0) ...[
-                  const Divider(height: 28),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Related Notes',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _EditorRelatedNotes(noteId: _editing!.id),
-                ],
-                const SizedBox(height: 12),
-                Obx(() => Text(
-                      _notes.saveStatus.value,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    )),
               ],
             ),
           ),

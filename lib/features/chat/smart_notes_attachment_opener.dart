@@ -19,38 +19,16 @@ String? smartNotesAttachmentIdFromUrl(String rawUrl) {
   return id.isEmpty ? null : id;
 }
 
-/// Resolves citations from this turn via chunk metadata → opens viewer.
-Future<void> openSmartNotesAttachmentFromChat(
+/// Opens the in-app PDF or image viewer for [ref], if supported.
+///
+/// Shows a snackbar when the file is missing or the MIME type cannot be shown.
+Future<void> openNoteAttachmentPreview(
   BuildContext context,
-  String url,
-  List<SimilarChunk> citations,
+  NoteAttachmentRef ref,
 ) async {
   final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
   final navigator = Navigator.maybeOf(context);
   if (scaffoldMessenger == null || navigator == null) return;
-
-  final id = smartNotesAttachmentIdFromUrl(url);
-  if (id == null) return;
-
-  NoteAttachmentRef? ref;
-  for (final hit in citations) {
-    final list =
-        attachmentsFromChunkMetadataJson(hit.chunk.chunkMetadataJson);
-    for (final a in list) {
-      if (a.id == id) {
-        ref = a;
-        break;
-      }
-    }
-    if (ref != null) break;
-  }
-
-  if (ref == null) {
-    scaffoldMessenger.showSnackBar(
-      const SnackBar(content: Text('Attachment not available for this reply.')),
-    );
-    return;
-  }
 
   final abs = await Get.find<AttachmentService>().absolutePathFor(ref);
 
@@ -63,8 +41,7 @@ Future<void> openSmartNotesAttachmentFromChat(
 
   final mime = ref.mimeType.toLowerCase().trim();
   final ext = p.extension(ref.displayName).toLowerCase();
-  final looksPdf =
-      mime == 'application/pdf' || ext == '.pdf';
+  final looksPdf = mime == 'application/pdf' || ext == '.pdf';
   final looksImage = mime.startsWith('image/');
 
   final title =
@@ -95,4 +72,39 @@ Future<void> openSmartNotesAttachmentFromChat(
       ),
     ),
   );
+}
+
+/// Resolves citations from this turn via chunk metadata → opens viewer.
+Future<void> openSmartNotesAttachmentFromChat(
+  BuildContext context,
+  String url,
+  List<SimilarChunk> citations,
+) async {
+  final scaffoldMessenger = ScaffoldMessenger.maybeOf(context);
+  if (scaffoldMessenger == null) return;
+
+  final id = smartNotesAttachmentIdFromUrl(url);
+  if (id == null) return;
+
+  NoteAttachmentRef? ref;
+  for (final hit in citations) {
+    final list =
+        attachmentsFromChunkMetadataJson(hit.chunk.chunkMetadataJson);
+    for (final a in list) {
+      if (a.id == id) {
+        ref = a;
+        break;
+      }
+    }
+    if (ref != null) break;
+  }
+
+  if (ref == null) {
+    scaffoldMessenger.showSnackBar(
+      const SnackBar(content: Text('Attachment not available for this reply.')),
+    );
+    return;
+  }
+
+  await openNoteAttachmentPreview(context, ref);
 }
