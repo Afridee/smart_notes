@@ -1,13 +1,17 @@
 import 'dart:math';
+import 'dart:developer' as dev;
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_doc_scanner/flutter_doc_scanner.dart';
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../data/models/note.dart';
 import '../../../data/models/note_attachment.dart';
+import '../../../platform/materialize_scanned_pdf.dart';
 import '../../../features/chat/smart_notes_attachment_opener.dart';
 import '../../../routes/app_routes.dart';
 import '../../../services/attachment_service.dart';
@@ -100,6 +104,57 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
+  Future<void> _scanDocument() async {
+    if (_attachmentSlotsRemaining <= 0) {
+      _snackAtAttachmentLimit();
+      return;
+    }
+
+    if (defaultTargetPlatform != TargetPlatform.android &&
+        defaultTargetPlatform != TargetPlatform.iOS) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Document scanning is available on Android and iPhone.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    PdfScanResult? pdf;
+    try {
+      pdf = await FlutterDocScanner().getScannedDocumentAsPdf(
+        page: kMaxDocumentScanPages,
+      );
+    } on DocScanException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Scan failed: ${e.message}')),
+      );
+      return;
+    }
+
+    if (pdf == null) return;
+
+    final resolvedPath =
+        await materializeScannedPdfForImport(pdf.pdfUri) ?? pdf.pdfUri;
+
+    final t = DateTime.now().toLocal();
+    final displayName =
+        'Scan ${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}_${t.hour.toString().padLeft(2, '0')}-${t.minute.toString().padLeft(2, '0')}.pdf';
+
+    final ok = await _importPath(
+      absolutePath: resolvedPath,
+      displayName: displayName,
+      mimeType: 'application/pdf',
+    );
+    if (ok) {
+      await discardAndroidScanCacheIfNeeded(resolvedPath);
+    }
+  }
+
   Future<void> _pickPhotos() async {
     if (_attachmentSlotsRemaining <= 0) {
       _snackAtAttachmentLimit();
@@ -173,14 +228,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     );
   }
 
-  Future<void> _importPath({
+  Future<bool> _importPath({
     required String absolutePath,
     required String displayName,
     required String mimeType,
   }) async {
     if (_attachmentSlotsRemaining <= 0) {
       _snackAtAttachmentLimit();
-      return;
+      return false;
     }
     try {
       final svc = Get.find<AttachmentService>();
@@ -194,11 +249,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       );
       _attachments.add(ref);
       if (mounted) setState(() {});
+      return true;
     } catch (e) {
-      if (!mounted) return;
+      dev.log(e.toString());
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not attach file: $e')),
       );
+      return false;
     }
   }
 
@@ -310,6 +368,16 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
               onTap: () {
                 Navigator.pop(ctx);
                 _pickPdf();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.document_scanner_outlined),
+              title: const Text('Scan documents'),
+              subtitle:
+                  Text('Up to $kMaxDocumentScanPages pages · one PDF attachment'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _scanDocument();
               },
             ),
             ListTile(
@@ -524,7 +592,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                                   const SizedBox(height: 8),
                                   if (_attachments.isEmpty)
                                     Text(
-                                      'PDFs or images (max $kMaxAttachmentsPerNote). '
+                                      'Scan documents, PDFs, or images '
+                                      '(max $kMaxAttachmentsPerNote attachments). '
                                       'Tap the clip icon to add.',
                                       style: Theme.of(context)
                                           .textTheme

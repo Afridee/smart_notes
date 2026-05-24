@@ -48,7 +48,7 @@
 			</dict>
 		</dict>
 		<key>NSCameraUsageDescription</key>
-		<string>Smart Notes needs camera access to attach photos you take into a note.</string>
+		<string>Smart Notes uses the camera when you scan documents or take photos for notes.</string>
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Smart Notes accesses your photo library when you attach images to a note.</string>
 		<key>UIApplicationSupportsIndirectInputEvents</key>

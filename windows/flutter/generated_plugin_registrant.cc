@@ -7,6 +7,7 @@
 #include "generated_plugin_registrant.h"
 
 #include <file_selector_windows/file_selector_windows.h>
+#include <flutter_doc_scanner/flutter_doc_scanner_plugin_c_api.h>
 #include <flutter_gemma/flutter_gemma_plugin.h>
 #include <objectbox_flutter_libs/objectbox_flutter_libs_plugin.h>
 #include <pdfx/pdfx_plugin.h>
@@ -14,6 +15,8 @@
 void RegisterPlugins(flutter::PluginRegistry* registry) {
   FileSelectorWindowsRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FileSelectorWindows"));
+  FlutterDocScannerPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("FlutterDocScannerPluginCApi"));
   FlutterGemmaPluginRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("FlutterGemmaPlugin"));
   ObjectboxFlutterLibsPluginRegisterWithRegistrar(
