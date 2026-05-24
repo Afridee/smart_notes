@@ -60,6 +60,22 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.14.1
   objectbox_generator: ^5.3.1
+  flutter_native_splash: ^2.4.7
+
+# Splash screen assets (run: dart run flutter_native_splash:create)
+flutter_native_splash:
+  # Match AppThemeColors.lightBackground / darkBackground
+  color: '#F9F9F9'
+  image: assets/app_icon.png
+  color_dark: '#F9F9F9'
+  image_dark: assets/app_icon.png
+  android_12:
+    color: '#F9F9F9'
+    image: assets/app_icon.png
+    color_dark: '#F9F9F9'
+    image_dark: assets/app_icon.png
+    icon_background_color: '#F9F9F9'
+    icon_background_color_dark: '#F9F9F9'
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
