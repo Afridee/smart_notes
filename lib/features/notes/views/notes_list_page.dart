@@ -15,7 +15,7 @@ class NotesListPage extends GetView<NotesController> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Smart Notes'),
+        title: const Text("Afridee's notes"),
         actions: [
           IconButton(
             tooltip: 'Semantic graph',

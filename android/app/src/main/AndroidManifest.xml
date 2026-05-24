@@ -6,7 +6,7 @@
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
-        android:label="smart_notes"
+        android:label="Afridee's notes"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <uses-native-library

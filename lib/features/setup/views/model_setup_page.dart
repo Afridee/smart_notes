@@ -16,7 +16,7 @@ class ModelSetupPage extends GetView<ModelSetupController> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 24),
-              Text('Smart Notes',
+              Text("Afridee's notes",
                   style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 8),
               Text(
