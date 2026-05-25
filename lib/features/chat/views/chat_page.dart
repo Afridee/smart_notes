@@ -37,14 +37,55 @@ class ChatPage extends GetView<ChatController> {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Ask your notes'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.clear_all),
-              onPressed: () async {
-                await controller.clear();
-              },
+          title: const Text('Hi, Afridee!'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(34),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Obx(() {
+                  final theme = Theme.of(context);
+                  final range = controller.chunkRetrievalRange.value;
+                  return Row(
+                    children: [
+                      Icon(
+                        Icons.calendar_month_outlined,
+                        size: 16,
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _chunkRetrievalRangeLabel(range),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ),
             ),
+          ),
+          actions: [
+            Obx(() {
+              final busy = controller.isAnswering.value;
+              return IconButton(
+                icon: const Icon(Icons.calendar_month_outlined),
+                onPressed: busy
+                    ? null
+                    : () {
+                        unawaited(
+                          _pickChunkRetrievalRange(context, controller),
+                        );
+                      },
+              );
+            }),
           ],
         ),
         body: SafeArea(
@@ -78,8 +119,10 @@ class ChatPage extends GetView<ChatController> {
                 final s = controller.stage.value;
                 if (s.isEmpty) return const SizedBox.shrink();
                 return Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   child: Row(
                     children: [
                       const SizedBox(
@@ -93,43 +136,6 @@ class ChatPage extends GetView<ChatController> {
                   ),
                 );
               }),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
-                child: Obx(() {
-                  final busy = controller.isAnswering.value;
-                  final range = controller.chunkRetrievalRange.value;
-                  return Row(
-                    children: [
-                      Expanded(
-                        child: ActionChip(
-                          avatar: const Icon(Icons.date_range_outlined, size: 18),
-                          label: Text(
-                            _chunkRetrievalRangeLabel(range),
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: busy
-                              ? null
-                              : () {
-                                  unawaited(
-                                    _pickChunkRetrievalRange(context, controller),
-                                  );
-                                },
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: 'Reset to last 6 months',
-                        onPressed: busy
-                            ? null
-                            : () => controller.resetChunkRetrievalRangeToDefault(),
-                        icon: const Icon(Icons.restore_outlined),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ],
-                  );
-                }),
-              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 child: Row(
@@ -248,10 +254,8 @@ class _Bubble extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       visualDensity: VisualDensity.compact,
-                      onPressed: () => Get.toNamed(
-                        AppRoutes.noteEditor,
-                        arguments: note,
-                      ),
+                      onPressed: () =>
+                          Get.toNamed(AppRoutes.noteEditor, arguments: note),
                     ),
                 ],
               ),
@@ -285,11 +289,33 @@ String _referenceLabel(String title) {
 }
 
 String _chunkRetrievalRangeLabel(ChunkCreatedAtRange r) {
-  String ymd(DateTime d) =>
-      '${d.year.toString().padLeft(4, '0')}-'
-      '${d.month.toString().padLeft(2, '0')}-'
-      '${d.day.toString().padLeft(2, '0')}';
-  return '${ymd(r.startInclusive)} — ${ymd(r.endInclusive)}';
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  String ordinalSuffix(int day) {
+    if (day >= 11 && day <= 13) return 'th';
+    return switch (day % 10) {
+      1 => 'st',
+      2 => 'nd',
+      3 => 'rd',
+      _ => 'th',
+    };
+  }
+
+  String friendly(DateTime d) =>
+      '${d.day}${ordinalSuffix(d.day)} ${months[d.month - 1]}, ${d.year}';
+  return '${friendly(r.startInclusive)} to ${friendly(r.endInclusive)}';
 }
 
 Future<void> _pickChunkRetrievalRange(
@@ -300,8 +326,11 @@ Future<void> _pickChunkRetrievalRange(
   final today = DateTime(now.year, now.month, now.day);
   final r = c.chunkRetrievalRange.value;
   final value = <DateTime?>[
-    DateTime(r.startInclusive.year, r.startInclusive.month,
-        r.startInclusive.day),
+    DateTime(
+      r.startInclusive.year,
+      r.startInclusive.month,
+      r.startInclusive.day,
+    ),
     DateTime(r.endInclusive.year, r.endInclusive.month, r.endInclusive.day),
   ];
 
