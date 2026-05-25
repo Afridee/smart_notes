@@ -19,7 +19,7 @@ class RagService extends GetxService {
       'When you refer to those files in your reply, include the clickable '
       'markdown link copied exactly from the excerpt (format [Label](smartnotes://attachment/<id>). '
       'Format every reply in Markdown (e.g. ## headings, **bold**, `-` bullets, '
-      '`inline code`) when it helps readability.';
+      '`inline code`) when it helps readability. ';
 
   /// Tokens reserved for system instruction, Gemma chat template, and decoding.
   static const int _promptReserveTokens = 768;
@@ -135,5 +135,43 @@ class RagService extends GetxService {
     return title.isEmpty ? '' : clip('Title: $title');
   }
 
-  String get systemInstruction => defaultSystemInstruction;
+  /// Device-local calendar context for interpreting relative wording in questions.
+  static String formattedLocalCalendarDate(DateTime dateTime) {
+    const weekdays = <String>[
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    const months = <String>[
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final d = weekdays[dateTime.weekday - 1];
+    final m = months[dateTime.month - 1];
+    final iso =
+        '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-'
+        '${dateTime.day.toString().padLeft(2, '0')}';
+    return '$d, $m ${dateTime.day}, ${dateTime.year} ($iso)';
+  }
+
+  String get systemInstruction =>
+      '$defaultSystemInstruction'
+      "Today's calendar date on the user's device (local timezone) is "
+      '${formattedLocalCalendarDate(DateTime.now())}. '
+      'Use this when interpreting relative phrases (e.g. "today", "this week", '
+      '"recently") if the excerpts do not give a conflicting date.';
 }
