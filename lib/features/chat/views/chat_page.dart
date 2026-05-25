@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:calendar_date_picker2/calendar_date_picker2.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 
+import '../../../data/models/chunk_retrieval_range.dart';
 import '../../../data/models/note.dart';
 import '../../../data/objectbox/objectbox.dart';
 import '../../../routes/app_routes.dart';
@@ -89,6 +93,43 @@ class ChatPage extends GetView<ChatController> {
                   ),
                 );
               }),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+                child: Obx(() {
+                  final busy = controller.isAnswering.value;
+                  final range = controller.chunkRetrievalRange.value;
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: ActionChip(
+                          avatar: const Icon(Icons.date_range_outlined, size: 18),
+                          label: Text(
+                            _chunkRetrievalRangeLabel(range),
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: busy
+                              ? null
+                              : () {
+                                  unawaited(
+                                    _pickChunkRetrievalRange(context, controller),
+                                  );
+                                },
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'Reset to last 6 months',
+                        onPressed: busy
+                            ? null
+                            : () => controller.resetChunkRetrievalRangeToDefault(),
+                        icon: const Icon(Icons.restore_outlined),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  );
+                }),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
                 child: Row(
@@ -241,4 +282,44 @@ String _referenceLabel(String title) {
   if (t.isEmpty) return 'Untitled note';
   if (t.length <= 52) return t;
   return '${t.substring(0, 50)}…';
+}
+
+String _chunkRetrievalRangeLabel(ChunkCreatedAtRange r) {
+  String ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+  return '${ymd(r.startInclusive)} — ${ymd(r.endInclusive)}';
+}
+
+Future<void> _pickChunkRetrievalRange(
+  BuildContext context,
+  ChatController c,
+) async {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final r = c.chunkRetrievalRange.value;
+  final value = <DateTime?>[
+    DateTime(r.startInclusive.year, r.startInclusive.month,
+        r.startInclusive.day),
+    DateTime(r.endInclusive.year, r.endInclusive.month, r.endInclusive.day),
+  ];
+
+  final picked = await showCalendarDatePicker2Dialog(
+    context: context,
+    config: CalendarDatePicker2WithActionButtonsConfig(
+      calendarType: CalendarDatePicker2Type.range,
+      firstDate: DateTime(2000),
+      lastDate: today,
+    ),
+    dialogSize: const Size(325, 400),
+    value: value,
+    borderRadius: BorderRadius.circular(15),
+  );
+  if (!context.mounted) return;
+  if (picked == null || picked.length < 2) return;
+  final a = picked[0];
+  final b = picked[1];
+  if (a == null || b == null) return;
+  c.setChunkRetrievalRange(normalizeChunkRange(a, b));
 }

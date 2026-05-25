@@ -4,6 +4,7 @@ import 'dart:developer' show log;
 import 'package:flutter_gemma/flutter_gemma.dart';
 import 'package:get/get.dart';
 
+import '../../../data/models/chunk_retrieval_range.dart';
 import '../chat_citation_polish.dart';
 import '../../../services/embedding_service.dart';
 import '../../../services/gemma_service.dart';
@@ -60,6 +61,10 @@ class ChatController extends GetxController {
   final isAnswering = false.obs;
   final stage = ''.obs;
 
+  /// Chunks considered for RAG (`NoteChunk.createdAt`); default last ~6 months.
+  final chunkRetrievalRange =
+      Rx<ChunkCreatedAtRange>(defaultChunkRetrievalRangeLocal());
+
   InferenceChat? _chat;
   StreamSubscription<ModelResponse>? _activeSub;
 
@@ -115,6 +120,7 @@ class ChatController extends GetxController {
         queryText: q,
         queryVec: qVec,
         k: 3,
+        chunkCreatedBetween: chunkRetrievalRange.value,
       );
       assistant.citations = List<SimilarChunk>.from(hits);
       messages.refresh();
@@ -162,6 +168,14 @@ class ChatController extends GetxController {
       _activeSub = null;
       await _resetChatSession();
     }
+  }
+
+  void setChunkRetrievalRange(ChunkCreatedAtRange range) {
+    chunkRetrievalRange.value = range;
+  }
+
+  void resetChunkRetrievalRangeToDefault() {
+    chunkRetrievalRange.value = defaultChunkRetrievalRangeLocal();
   }
 
   Future<void> clear() async {

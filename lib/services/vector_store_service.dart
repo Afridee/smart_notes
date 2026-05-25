@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:get/get.dart';
 
+import '../data/models/chunk_retrieval_range.dart';
 import '../data/models/note.dart';
 import '../data/models/note_chunk.dart';
 import '../data/objectbox/objectbox.dart';
@@ -76,10 +77,23 @@ class VectorStoreService extends GetxService {
     List<double> queryVec, {
     int k = 3,
     double minScore = 0.0,
+    ChunkCreatedAtRange? createdBetween,
   }) async {
-    final query = _box.chunkBox
-        .query(NoteChunk_.embedding.nearestNeighborsF32(queryVec, k))
-        .build();
+    // ANN pool size is trimmed by additional predicates; over-fetch when filtering.
+    final annPoolSize = createdBetween != null
+        ? math.min(math.max(k * 10, 100), 500)
+        : k;
+    var cond = NoteChunk_.embedding.nearestNeighborsF32(queryVec, annPoolSize);
+    if (createdBetween != null) {
+      cond = cond
+          .and(NoteChunk_.createdAt.greaterOrEqual(
+            createdBetween.startInclusive.millisecondsSinceEpoch,
+          ))
+          .and(NoteChunk_.createdAt.lessOrEqual(
+            createdBetween.endInclusive.millisecondsSinceEpoch,
+          ));
+    }
+    final query = _box.chunkBox.query(cond).build();
     try {
       final results = query.findWithScores();
       final mapped = <SimilarChunk>[];
@@ -114,9 +128,14 @@ class VectorStoreService extends GetxService {
     double mmrLambda = 0.7,
     bool useBm25 = true,
     double bm25Weight = 0.3,
+    ChunkCreatedAtRange? chunkCreatedBetween,
   }) async {
     final effectivePool = math.max(candidatePoolSize, k);
-    final dense = await searchSimilar(queryVec, k: effectivePool);
+    final dense = await searchSimilar(
+      queryVec,
+      k: effectivePool,
+      createdBetween: chunkCreatedBetween,
+    );
     final pool = <int, SimilarChunk>{
       for (final d in dense) d.chunk.id: d,
     };
@@ -133,6 +152,10 @@ class VectorStoreService extends GetxService {
         if (added >= effectivePool) break;
         final chunk = _box.chunkBox.get(entry.key);
         if (chunk == null) continue;
+        if (chunkCreatedBetween != null &&
+            !chunkCreatedBetween.contains(chunk.createdAt)) {
+          continue;
+        }
         final cv = chunk.embedding;
         final cs = (cv.length == queryVec.length && cv.isNotEmpty)
             ? cosineSimilarity(cv, queryVec)
@@ -142,6 +165,13 @@ class VectorStoreService extends GetxService {
       }
     }
 
+    if (pool.isEmpty) return const <SimilarChunk>[];
+
+    if (chunkCreatedBetween != null) {
+      pool.removeWhere(
+        (id, s) => !chunkCreatedBetween.contains(s.chunk.createdAt),
+      );
+    }
     if (pool.isEmpty) return const <SimilarChunk>[];
 
     final cands = pool.values.toList();
